@@ -8,6 +8,21 @@ export enum KnitNodeType {
     BIND_OFF = 'bind_off',
     CAST_ON = 'cast_on',
 }
+export enum KnitMode {
+    ROUND = 'round',
+    FLAT = 'flat'
+}
+export enum KnitEdgeDirection {
+    ROW = 'row',
+    COLUMN = 'column',
+    BOTH = 'both',
+    STITCH = 'stitch',
+    START = 'start',
+}
+export enum KnitSide {
+    RIGHT = 'right',
+    WRONG = 'wrong',
+}
 export class YarnSpec {
     color: number;
     weight: number;
@@ -24,26 +39,16 @@ export class KnitNode {
     static idCounter: number = 0;
     type: KnitNodeType;
     yarnSpec: YarnSpec;
-    start_row: boolean = false;
+    start_of_row: boolean = false;
     side: KnitSide = KnitSide.RIGHT;
+    previous_node?: KnitNode;
     constructor(type: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1), start_row: boolean = false, side: KnitSide = KnitSide.RIGHT) {
         this.yarnSpec = yarnSpec;
         this.type = type;
         this.id = KnitNode.idCounter++;
-        this.start_row = start_row;
+        this.start_of_row = start_row;
         this.side = side;
     }
-}
-export enum KnitEdgeDirection {
-    ROW = 'row',
-    COLUMN = 'column',
-    BOTH = 'both',
-    STITCH = 'stitch',
-    START = 'start',
-}
-export enum KnitSide {
-    RIGHT,
-    WRONG,
 }
 export class KnitEdge {
     from: number;
@@ -60,22 +65,39 @@ export class KnittingState {
     previous_node?: KnitNode;
 
     side: KnitSide = KnitSide.RIGHT;
-    connect_with_end: boolean = false;
+    round_knit: boolean = false;
     last_end_node?: KnitNode;
+    last_start_node?: KnitNode;
     row_number: number = 0;
     col_number: number = 0;
+
     constructor(graph: KnitGraph) {
         this.graph = graph;
     }
-    call_position(): number {
+    call_position(offset = 3): number {
         let stack = (new Error()).stack?.split("\n");
-        let error_line = stack ? stack[3] : undefined;
+        let error_line = stack ? stack[offset] : undefined;
         let line = error_line?.match(/:(\d+):\d+\)$/)[1]
         return parseInt(line as string);
+    }
+    do_round_knit() {
+        this.round_knit = true;
+    }
+    do_flat_knit() {
+        this.round_knit = false;
     }
     add_edge(edge: KnitEdge) {
         // console.log('add edge', edge);
         this.graph.edges.push(edge);
+    }
+    cast_on(n: number, mode: KnitMode = KnitMode.FLAT) {
+        this.previous_node = undefined;
+        this.last_end_node = undefined;
+        this.row_number = 0;
+        this.col_number = 0;
+        this.round_knit = mode == KnitMode.ROUND;
+        this.knit(n, KnitNodeType.CAST_ON);
+        this.end_row();
     }
     knit(n: number, type: KnitNodeType, procedal: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1)) {
         for (let i = 0; i < n; i++) {
@@ -84,14 +106,30 @@ export class KnittingState {
             node.row_number = this.row_number;
             node.col_number = this.col_number;
             this.col_number++;
-            node.start_row = this.previous_node ? false : true;
+            node.start_of_row = this.previous_node ? false : true;
             this.graph.nodes[node.id] = node;
             if (this.last_end_node) {
                 // console.log('last_end_node', this.last_end_node, 'previous_node', this.previous_node);
-                this.add_edge(new KnitEdge(this.last_end_node.id, node.id, KnitEdgeDirection.COLUMN, this.side));
+                if (this.round_knit) {
+                    // this.add_edge(new KnitEdge(this.last_end_node.id, node.id, KnitEdgeDirection.ROW, this.side));
+                    if (this.last_start_node) {
+                        this.add_edge(new KnitEdge(this.last_start_node.id, node.id, KnitEdgeDirection.COLUMN, this.side));
+                    }
+                } else {
+                    this.add_edge(new KnitEdge(this.last_end_node.id, node.id, KnitEdgeDirection.COLUMN, this.side));
+                }
+                node.previous_node = this.last_end_node;
                 this.last_end_node = null;
-            } else if (this.previous_node) {
-                let traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }, { dir: KnitEdgeDirection.ROW, in: false }];
+            }
+
+            if (this.previous_node) {
+                let backdir = true;
+                if (this.round_knit) {
+                    //when going back, the side is reversed - always!
+                    backdir = false
+                    // backdir = this.side != KnitSide.RIGHT;
+                }
+                let traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }, { dir: KnitEdgeDirection.ROW, in: backdir }];
                 if (procedal == KnitNodeType.SLIP) {
                     traversal = [{ dir: KnitEdgeDirection.ROW, in: true }]
                 }
@@ -106,31 +144,36 @@ export class KnittingState {
                     this.add_edge(new KnitEdge(bellow_node.id, node.id, KnitEdgeDirection.COLUMN, this.side));
                 }
                 this.add_edge(new KnitEdge(this.previous_node.id, node.id, KnitEdgeDirection.ROW, this.side));
-
+                node.previous_node = this.previous_node;
             }
             this.previous_node = node;
         }
     }
     end_row() {
         if (this.previous_node) {
-            let end_node = this.graph.beginOfRow(this.previous_node);
-            this.last_end_node = end_node;
-            // console.log('end node for row', end_node, this.previous_node);
-            if (end_node) {
-                if (this.connect_with_end) {
-                    this.add_edge(new KnitEdge(this.previous_node.id, end_node.id, KnitEdgeDirection.ROW, this.side));
+            this.last_end_node = this.previous_node;
+            let start_node = this.graph.beginOfRow(this.previous_node);
+            this.last_start_node = start_node;
+            // this.last_end_node = end_node;
+            // console.log('end node for row', start_node, this.previous_node);
+            if (start_node) {
+                if (this.round_knit) {
+                    //questionable, is this edge really needed?
+                    this.add_edge(new KnitEdge(this.previous_node.id, start_node.id, KnitEdgeDirection.ROW, this.side));
                 }
             }
         }
         this.row_number++;
         this.col_number = 0;
-        switch (this.side) {
-            case KnitSide.RIGHT:
-                this.side = KnitSide.WRONG;
-                break;
-            case KnitSide.WRONG:
-                this.side = KnitSide.RIGHT;
-                break;
+        if (!this.round_knit) {
+            switch (this.side) {
+                case KnitSide.RIGHT:
+                    this.side = KnitSide.WRONG;
+                    break;
+                case KnitSide.WRONG:
+                    this.side = KnitSide.RIGHT;
+                    break;
+            }
         }
         this.previous_node = undefined
     }
@@ -209,7 +252,7 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
                 }
                 current = next;
             } else {
-                console.log('no next node', current, dir, nodes);
+                // console.log('no next node', current, dir, nodes);
                 return null;
             }
         }
@@ -219,11 +262,45 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
 
         return this.edgesof(node).map((edge) => Object.values(this.nodes).find((n) => (node.id != n.id) && (n.id == edge.from || n.id == edge.to))).filter(node => node) as N[];
     }
+    row(node: N): { round: N[], closed: boolean } {
+        let current_node = node;
+        let forward_nodes = [node]
+        let closed = false;
+        while (current_node) {
+            //check downward facing edges too as round knitting just goes around and links back to the start using this way
+            let col_edge = this.edges.find(edges => edges.direction == KnitEdgeDirection.COLUMN && edges.to == current_node.id);
+            if (col_edge && col_edge.from == node.id) {
+                closed = true;
+                break;
+            }
+            let next_edge = this.edges.find(edges => edges.direction == KnitEdgeDirection.ROW && edges.from == current_node.id);
+            if (next_edge) {
+                if (next_edge.to == node.id) {
+                    closed = true;
+                } else {
+                    current_node = this.nodes[next_edge.to];
+                    forward_nodes.push(current_node)
+                    continue
+                }
+            }
+            break;
+
+        }
+        let start_node = forward_nodes.find((node) => node.start_of_row);
+        if (start_node) {
+            let start_index = forward_nodes.indexOf(start_node);
+            forward_nodes = forward_nodes.slice(start_index).concat(forward_nodes.slice(0, start_index));
+        }
+        return { round: forward_nodes, closed };
+    }
     beginOfRow(node: N): N | undefined {
         let current_node = node;
         while (current_node) {
+            if (current_node.start_of_row) {
+                return current_node;
+            }
             let next_edge = this.edges.find(edges => edges.direction == KnitEdgeDirection.ROW && edges.to == current_node.id);
-            if (next_edge) {
+            if (next_edge && next_edge.from != node.id) {
                 current_node = this.nodes[next_edge.from];
             }
             else {
@@ -232,8 +309,10 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
         }
     }
     execute(code: string) {
-        this.state.last_end_node = null;
-        this.state.previous_node = null;
+        this.state = new KnittingState(this);
+        this.edges = [];
+        this.nodes = [];
+
         let pattern_function = (new Function(code)) as () => void;
         try {
             pattern_function.apply(this.state);

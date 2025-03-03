@@ -1,6 +1,9 @@
 <template>
     <main>
         <div class="pattern_viz">
+            <div>
+                <button @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k }}</button>
+            </div>
             <div class="code_editor">
                 <Code v-model="state.code">
                 </Code>
@@ -21,22 +24,17 @@ import { PatternViz3D } from '@/knitgraph/viz';
 import { reactive, ref } from 'vue';
 const state = reactive({
     graph: null as KnitGraph | null,
-    code: ref(`
+    examples: {
+        simple_flat: `
+    this.cast_on(24)
     const knit_row=()=>{
         for (let i = 0; i < 6; i++) {
             this.knit(2, 'purl')
             this.knit(2, 'knit')
         }
         this.end_row()
-    
-        for(let i = 0; i < 6; i++){
-            this.knit(2, 'purl')
-            this.knit(2, 'knit')
-        }
-        this.end_row()
-
     }
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 6; i++) {
         knit_row()
     }
     for(let i = 0; i < 6; i++){
@@ -45,7 +43,38 @@ const state = reactive({
         this.knit(24, 'knit')
         this.end_row()
     }
-        `),
+    for(let i = 0; i < 6; i++){
+        this.knit(24, 'knit')
+        this.end_row()
+        this.knit(24, 'knit')
+        this.end_row()
+    }`,
+        simple_circular: `
+    this.cast_on(24, 'round')
+    const knit_row=()=>{
+        for (let i = 0; i < 6; i++) {
+            this.knit(2, 'purl')
+            this.knit(2, 'knit')
+        }
+        this.end_row()
+    }
+    for (let i = 0; i < 6; i++) {
+        knit_row()
+    }
+    for(let i = 0; i < 6; i++){
+        this.knit(24, 'purl')
+        this.end_row()
+        this.knit(24, 'knit')
+        this.end_row()
+    }
+    for(let i = 0; i < 6; i++){
+        this.knit(24, 'knit')
+        this.end_row()
+        this.knit(24, 'knit')
+        this.end_row()
+    }`,
+    },
+    code: ref(''),
     viz: null as PatternViz3D | null,
 })
 const runCode = () => {
@@ -77,11 +106,13 @@ const runCode = () => {
     height: 50%;
     width: 100%;
 }
+
 #pattern_viz_3d {
     height: 50%;
     width: 100%;
 }
-.threed_graph{
+
+.threed_graph {
     height: 100%;
     width: 100%;
 }
