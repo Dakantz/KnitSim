@@ -7,25 +7,26 @@ import { OrbitControls } from 'three/examples/jsm/Addons.js'
 import { fromVec3, toVec3 } from './helpers'
 import * as mjs from 'mathjs'
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js'
-import type { GraphConfig, KnitGraphC, MainModule, NodeC } from './sim/knitsim-lib'
-import MainModuleFactory from './sim/knitsim-lib'
+import type { ClassHandle, GraphConfig, KnitGraphC, KnitSim, MainModule, NodeC } from './sim/knitsim-lib'
+import KnitSimLib from './sim/knitsim-lib'
 // 3D circle packing based upon https://observablehq.com/@analyzer2004/3d-circle-packing
 // expanded with Topic links and fixed height of nodes (TODO)
 let KnitSimModule: MainModule = null;
 
-MainModuleFactory({
-
+KnitSimLib({
 }).then((module) => {
     KnitSimModule = module
     console.log("KnitSimModule", KnitSimModule)
 }).catch(console.error)
+
+type WASMValueType<T extends ClassHandle> = Exclude<T, ClassHandle>;
 export class KnitNode3D extends KnitNode {
-    position: THREE.Vector3
+    position: THREE.Vector3 = new THREE.Vector3()
     curve: THREE.Curve<THREE.Vector3>
     yarn_geometry: THREE.TubeGeometry
     material: THREE.Material
     mesh: THREE.Mesh
-    normal: THREE.Vector3
+    normal: THREE.Vector3 = new THREE.Vector3()
 
     node_sphere_mesh: THREE.Mesh
     node_normal_helper: THREE.ArrowHelper
@@ -39,7 +40,8 @@ export class KnitNode3D extends KnitNode {
     }
 }
 export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
-    private graph_wasm: KnitGraphC
+    graph_wasm: KnitGraphC
+    graph_sim: KnitSim
     constructor(graph: KnitGraph) {
         super()
         for (let key in graph) {
@@ -52,44 +54,81 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
             this.nodes[node.id] = new KnitNode3D(node, new THREE.Vector3())
         }
     }
-    async initGraphWASM(cfg: GraphConfig) {
-        if(this.graph_wasm){
-            return this.graph_wasm
+    step(time: number) {
+        if (!this.graph_wasm) {
+            return
         }
-        if (!KnitSimModule) {
-            KnitSimModule = await MainModuleFactory({})
+        this.graph_wasm.calculateNormals()
+        let accumulated_movement = this.graph_sim.step(time, 0.2, 0.2)
+        this.syncGraphWASM()
+        return accumulated_movement
+    }
+    syncGraphWASM() {
+        if (!this.graph_wasm) {
+            return
+        }
+        for (let key in this.nodes) {
+            let node = this.nodes[key]
+            let wasm_node = this.graph_wasm.getNode(node.id)
+            node.position.set(wasm_node.position.x, wasm_node.position.y, wasm_node.position.z)
+            node.normal.set(wasm_node.normal.x, wasm_node.normal.y, wasm_node.normal.z)
+
+            if (node.mesh) {
+                node.mesh.geometry.dispose()
+                node.mesh.geometry = new THREE.TubeGeometry(node.curve, 200, node.yarnSpec.weight * 0.03, 8, true)
+            }
+        }
+    }
+    initGraphWASM(cfg: GraphConfig) {
+        if (this.graph_wasm) {
+            return this.graph_wasm
         }
         let node_vec = new KnitSimModule.NodeVector()
         let edge_vec = new KnitSimModule.EdgeVector()
         for (let key in this.nodes) {
             let node = this.nodes[key]
-            node_vec.push_back({
+            let node_wasm = {
                 id: node.id,
                 line_number: node.line_number,
                 row_number: node.row_number,
                 col_number: node.col_number,
                 start_of_row: node.start_of_row,
-                previous_node: node.previous_node.id,
-                type: KnitSimModule.KnitNodeTypeC[node.type],
+                previous_node_id: node.previous_node?.id || -1,
+                type: KnitSimModule.KnitNodeTypeC[`KnitNodeTypeC_${node.type.toUpperCase()}`],
                 mode: KnitSimModule.KnitModeC.KnitModeC_FLAT,
-                side: KnitSimModule.KnitSideC[node.side],
+                side: KnitSimModule.KnitSideC[`KnitSideC_${node.side}`],
                 position: new KnitSimModule.Vector3f(node.position.x, node.position.y, node.position.z),
-                normal: new KnitSimModule.Vector3f(node.normal.x, node.normal.y, node.normal.z),
+                normal: node.normal ? new KnitSimModule.Vector3f(node.normal.x, node.normal.y, node.normal.z) : new KnitSimModule.Vector3f(0, 0, 0),
                 next_dir: new KnitSimModule.Vector3f(0, 0, 0)
-            })
+            }
+            // console.log("Node wasm", node_wasm)
+            node_vec.push_back(node_wasm)
         }
 
         for (let edge of this.edges) {
             edge_vec.push_back({
                 from: edge.from,
                 to: edge.to,
-                direction: KnitSimModule.KnitEdgeDirectionC[edge.direction],
+                direction: KnitSimModule.KnitEdgeDirectionC[`KnitEdgeDirectionC_${edge.direction}`],
                 id: edge_vec.size()
             })
         }
         let graph = new KnitSimModule.KnitGraphC(cfg, node_vec, edge_vec)
         this.graph_wasm = graph
+        this.graph_sim = new KnitSimModule.KnitSim(graph, {
+            f_expansion_factor: 0.1,
+            f_flattening_factor: 0.1,
+            offset_scaler: 0.7
+        })
         return graph
+    }
+    computeHeuristics() {
+        let time = Date.now()
+        this.graph_wasm.computeHeuristicLayout()
+        this.graph_wasm.calculateNormals()
+        this.graph_wasm.computeKnitPaths()
+        this.syncGraphWASM()
+        console.log("Computed heuristics in", Date.now() - time)
     }
 }
 
@@ -135,69 +174,22 @@ export class PatternViz3D {
         this.graph = new KnitGraph3D(graph)
         this.init()
     }
+    stepSim(time: number) {
+        this.graph.step(time)
+    }
     computeKnits() {
-        let position = new THREE.Vector3(0, 0, 0)
-        let node_ids = Object.keys(this.graph.nodes).map(k => parseInt(k)).sort((a, b) => a - b)
-        this.graph.nodes[node_ids[0]].position = position
-        console.log("Node ids", node_ids)
-        let up_vector = new THREE.Vector3(1, 0, 0)
-        let right_vector = new THREE.Vector3(0, 0, 1)
-        let start_normal = up_vector.clone()
-
-
-
-        let plane_normal = right_vector.clone().cross(up_vector)
-        plane_normal.normalize()
-
-        for (let node_id of node_ids) {
-            let node = this.graph.nodes[node_id]
-            let { round, closed } = this.graph.row(node)
-            let offset_position = new THREE.Vector3()
-            let x_offset_modifier = node.side == KnitSide.WRONG ? 1 : -1
-            let node_pos = round.indexOf(node)
-            let start_node = round.find(n => n.start_of_row)
-            if (closed && start_node) {
-
-                let angle = x_offset_modifier * (node_pos / round.length) * Math.PI * 2
-                let radius = round.length * this.knit_dimensions.step_size_x / (Math.PI)
-
-                let x = Math.cos(angle) * radius
-                let y = Math.sin(angle) * radius
-
-                let circle_pos = up_vector.clone().multiplyScalar(x).add(right_vector.clone().multiplyScalar(y))
-                //start node should be at pos 0,0
-                circle_pos.sub(up_vector.clone().multiplyScalar(radius))
-
-                // console.log("Node", node, "round", round, "pos", node_pos, "start", start_node,
-                //     "angle", angle, "radius", radius, "circle_pos", circle_pos)
-                node.position = start_node.position.clone().add(circle_pos).add(plane_normal.clone().multiplyScalar(this.knit_dimensions.step_size_y))
-            } else {
-                offset_position = up_vector.clone().multiplyScalar(x_offset_modifier * this.knit_dimensions.step_size_x)
-            }
-
-            let edges = this.graph.outgoing(node)
-            for (let edge of edges) {
-                let to_node = this.graph.nodes[edge.to]
-                let from_node = this.graph.nodes[edge.from]
-                let other_node = to_node.id == node.id ? from_node : to_node
-                // if (visited[from_node.id]) {
-                //     continue
-                // }
-                // visited[to_node.id] = to_node
-                // visited[from_node.id] = from_node
-
-                switch (edge.direction) {
-                    case KnitEdgeDirection.ROW:
-                        to_node.position = from_node.position.clone().add(offset_position)
-                        break
-                    default:
-                    case KnitEdgeDirection.COLUMN:
-                        to_node.position = from_node.position.clone().add(plane_normal.clone().multiplyScalar(this.knit_dimensions.step_size_y))
-                        break
-                }
-                // console.log("Edge", edge, "from", from_node, "to", to_node, "other", other_node)
-            }
-        }
+        this.graph.initGraphWASM({
+            step_size_x: this.knit_dimensions.step_size_x,
+            step_size_y: this.knit_dimensions.step_size_y,
+            offset_bidirectional: this.knit_dimensions.offset_bidirectional,
+            offset_purl: this.knit_dimensions.offset_purl,
+            offset_knit: this.knit_dimensions.offset_knit,
+            yarn_thickness: this.knit_dimensions.yarn_thickness,
+            up_vector: new KnitSimModule.Vector3f(1, 0, 0),
+            right_vector: new KnitSimModule.Vector3f(0, 0, 1)
+        })
+        this.graph.computeHeuristics()
+        console.log("Computed graph", this.graph)
         let id = 0
         for (const node_id in this.graph.nodes) {
             const node = this.graph.nodes[node_id]
@@ -209,7 +201,6 @@ export class PatternViz3D {
             node.node_sphere_mesh.visible = this.show_nodes
             this.scene.add(node.node_sphere_mesh);
 
-            // console.log("Node", node, "neighbours", neighbours, "edges", this.graph.edgesof(node))
             for (let edges of this.graph.outgoing(node)) {
                 let to = this.graph.nodes[edges.to]
                 let dir = to.position.clone().sub(node.position)
@@ -219,60 +210,21 @@ export class PatternViz3D {
                 node.node_outgoing_helpers.push(outgoing_helper)
             }
 
-            // console.log("Node", node, "neighbours", neighbours) 
-            if (neighbours.length < 2) {
-                continue
-            }
-            // fit plane to neighbours
-            let relative_positions = neighbours.map(neighbour => neighbour.position.clone().sub(node.position))
-            let matrix_positions = relative_positions.map(fromVec3)
-            let xtx = mjs.multiply(mjs.transpose(matrix_positions), matrix_positions)
-            let eig = mjs.eigs(xtx)
-            node.normal = toVec3(eig.eigenvectors[0].vector as number[])
 
-            let neighbour_normals = neighbours.map(neighbour => this.graph.nodes[neighbour.id].normal)
-            let orientation_normal = neighbour_normals.find(nn => nn && nn.length() > 0)
-            if (!orientation_normal) {
-                console.log("No orientation normal found for node", node)
-                orientation_normal = start_normal
-            }
-            let projected_normal = node.normal.dot(orientation_normal)
-            console.log("Node", node, "normal", node.normal, "orientation", orientation_normal, "projected", projected_normal)
-            let negative = projected_normal < 0
-            if (projected_normal < 0) {
-                node.normal = node.normal.clone().multiplyScalar(-1)
-            }
-            node.node_normal_helper = new THREE.ArrowHelper(orientation_normal, node.position, 1, negative ? 0xff0000 : 0x00ff00)
+            node.node_normal_helper = new THREE.ArrowHelper(node.normal, node.position, 1, 0xff0000)
             node.node_normal_helper.visible = this.show_normals
-
-
+            let relative_positions = neighbours.map(neighbour => this.graph.nodes[neighbour.id].position.clone().sub(node.position))
             this.scene.add(node.node_normal_helper)
             // impose order on points by projecting them onto the plane and sorting them, first one is the 'reference' for the coordinate system
-            let projected = relative_positions.map(v => v.clone().projectOnPlane(node.normal.clone()))
-            let reference = projected[0]
-            let angles_to_reference = projected.map((v, i) => {
-                let angle = v.angleTo(reference)
-                return { angle, i }
+            let knit_path = this.graph.graph_wasm.knitPath(node.id)
+            let knit_path_arr = new Array(knit_path.size()).fill(0).map((_, id) => {
+                let vec = knit_path.get(id)
+                return new THREE.Vector3(vec.x, vec.y, vec.z)
             })
-            angles_to_reference.sort((a, b) => a.angle - b.angle)
-            let sorted_neighbours = angles_to_reference.map(a => neighbours[a.i])
 
-            let offset = 0
-            switch (node.type) {
-                case KnitNodeType.KNIT:
-                    offset = this.knit_dimensions.offset_knit
-                    break
-                case KnitNodeType.PURL:
-                    offset = this.knit_dimensions.offset_purl
-                    break
-            }
-            if (node.side == KnitSide.WRONG) {
-                offset *= -0.9
-            }
-            let central_point = node.position.clone().add(node.normal.clone().multiplyScalar(offset))
-            let curve = new THREE.CatmullRomCurve3(sorted_neighbours.flatMap(neighbour => [central_point, neighbour.position.clone(), central_point]), true)
+            let curve = new THREE.CatmullRomCurve3(knit_path_arr, true)
 
-            let geometry = new THREE.TubeGeometry(curve, 200, node.yarnSpec.weight * this.knit_dimensions.yarn_thickness, 8, true)
+            let geometry = new THREE.TubeGeometry(curve, knit_path_arr.length * 8, node.yarnSpec.weight * this.knit_dimensions.yarn_thickness, 6, true)
             let material = this.pool.yarn_material[node.yarnSpec.color] || new THREE.MeshToonMaterial({ color: node.yarnSpec.color, side: THREE.DoubleSide })
             let mesh = new THREE.Mesh(geometry, material)
 
@@ -347,8 +299,10 @@ export class PatternViz3D {
     render() {
         for (const node_id in this.graph.nodes) {
             const node = this.graph.nodes[node_id]
-            node.node_sphere_mesh.visible = this.show_nodes
-            node.node_normal_helper.visible = this.show_normals
+            if (node.node_sphere_mesh)
+                node.node_sphere_mesh.visible = this.show_nodes
+            if (node.node_normal_helper)
+                node.node_normal_helper.visible = this.show_normals
             for (let helper of node.node_outgoing_helpers) {
                 helper.visible = this.show_edges
             }

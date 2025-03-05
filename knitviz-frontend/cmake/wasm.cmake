@@ -18,7 +18,7 @@ target_link_libraries (${EXECUTABLE_NAME} Eigen3::Eigen)
 
 target_link_libraries(${EXECUTABLE_NAME}  knitsim graph)
 
-set_target_properties(${EXECUTABLE_NAME} PROPERTIES LINK_FLAGS "-sENVIRONMENT=web -s SINGLE_FILE=1 -s MODULARIZE -s EXPORT_NAME=KnitSimLib -s VERBOSE=1 --bind --emit-tsd 'knitsim-lib.d.ts'")
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES LINK_FLAGS "-sALLOW_MEMORY_GROWTH=1 -sASSERTIONS=1 -sEXPORT_ES6=1 -sENVIRONMENT=web -s SINGLE_FILE=1 -s MODULARIZE -s EXPORT_NAME=KnitSimLib --bind --emit-tsd 'knitsim-lib.d.ts'")
 target_link_options(${EXECUTABLE_NAME} PRIVATE
    # or wherever else you want it to go
 )

@@ -1,7 +1,7 @@
 <template>
     <div class="editor_wrapper">
         <div class="editor" ref="editor"></div>
-        <button @click="state.collapsed = !state.collapsed">{{ state.collapsed ? 'Expand' : 'Collapse' }}</button>
+        <!-- <button @click="state.collapsed = !state.collapsed">{{ state.collapsed ? 'Expand' : 'Collapse' }}</button> -->
     </div>
 
 </template>
@@ -52,15 +52,15 @@ const view_height =computed(()=>{
 </script>
 <style lang="scss">
 .editor {
-    height: 100%;
+    max-height: 100%;
     width: 100%;
-
-    max-height: v-bind(view_height);
+    padding: 10px;
+    // max-height: v-bind(view_height);
     overflow-y: auto;
 }
 
 .editor_wrapper {
-    height: 100%;
+    max-height: 100%;
     width: 100%;
 }
 </style>

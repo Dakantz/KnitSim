@@ -1,27 +1,27 @@
 export enum KnitNodeType {
-    PURL = 'purl',
-    KNIT = 'knit',
-    SLIP = 'slip',
-    YARN_OVER = 'yarn_over',
-    INCREASE = 'increase',
-    DECREASE = 'decrease',
-    BIND_OFF = 'bind_off',
-    CAST_ON = 'cast_on',
+    PURL = 'PURL',
+    KNIT = 'KNIT',
+    SLIP = 'SLIP',
+    YARN_OVER = 'YARN_OVER',
+    INCREASE = 'INCREASE',
+    DECREASE = 'DECREASE',
+    BIND_OFF = 'BIND_OFF',
+    CAST_ON = 'CAST_ON',
 }
 export enum KnitMode {
-    ROUND = 'round',
-    FLAT = 'flat'
+    ROUND = 'ROUND',
+    FLAT = 'FLAT'
 }
 export enum KnitEdgeDirection {
-    ROW = 'row',
-    COLUMN = 'column',
-    BOTH = 'both',
-    STITCH = 'stitch',
-    START = 'start',
+    ROW = 'ROW',
+    COLUMN = 'COLUMN',
+    BOTH = 'BOTH',
+    STITCH = 'STITCH',
+    START = 'START',
 }
 export enum KnitSide {
-    RIGHT = 'right',
-    WRONG = 'wrong',
+    RIGHT = 'RIGHT',
+    WRONG = 'WRONG',
 }
 export class YarnSpec {
     color: number;
@@ -100,7 +100,9 @@ export class KnittingState {
         this.end_row();
     }
     knit(n: number, type: KnitNodeType, procedal: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1)) {
+        type = (type as string).toUpperCase() as KnitNodeType;
         for (let i = 0; i < n; i++) {
+
             let node = new KnitNode(type, yarnSpec, false, this.side);
             node.line_number = this.call_position();
             node.row_number = this.row_number;

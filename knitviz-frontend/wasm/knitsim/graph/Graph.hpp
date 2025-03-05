@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 #include "Elements.hpp"
 #include "Helpers.hpp"
+#include <iostream>
 namespace knitsim
 {
 
@@ -21,6 +22,9 @@ namespace knitsim
         */
         std::map<uint32_t, std::vector<Node *>> node_outgoings;
         std::map<uint32_t, std::vector<Node *>> node_incomings;
+        std::map<uint32_t,
+                 std::vector<Eigen::Vector3f>>
+            knitpaths;
         GraphConfig config;
 
     public:
@@ -42,8 +46,10 @@ namespace knitsim
         {
             this->nodes = nodes;
             node_map.clear();
-            for (auto node : nodes)
+            for (auto &node : this->nodes)
             {
+                // std::cout << "Node:" << node.id << std::endl;
+                // std::cout << "Position:" << node.position << std::endl;
                 node_map[node.id] = &node;
             }
         }
@@ -116,7 +122,7 @@ namespace knitsim
             }
             return result;
         }
-        std::vector<Edge> incoming(Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
+        std::vector<Edge> incoming(const Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
         {
             std::vector<Edge> result;
             for (auto edge : edges)
@@ -128,7 +134,7 @@ namespace knitsim
             }
             return result;
         }
-        std::vector<Edge> outgoing(Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
+        std::vector<Edge> outgoing(const Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
         {
             std::vector<Edge> result;
             for (auto edge : edges)
@@ -140,7 +146,7 @@ namespace knitsim
             }
             return result;
         }
-        std::vector<Node> outgoingNodes(Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
+        std::vector<Node> outgoingNodes(const Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
         {
             std::vector<Node> result;
             for (auto edge : outgoing(node, direction))
@@ -158,7 +164,7 @@ namespace knitsim
             }
             return result;
         }
-        std::vector<Node> incomingNodes(Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
+        std::vector<Node> incomingNodes(const Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
         {
             std::vector<Node> result;
             for (auto edge : incoming(node))
@@ -243,10 +249,10 @@ namespace knitsim
             results.push_back(TraversalResult(nodes, edges));
             return results;
         }
-        RowResult rowUnordered(Node &start_node) const
+        RowResult rowUnordered(const Node &start_node) const
         {
             std::vector<Node> nodes = {start_node};
-            Node *current_node = &start_node;
+            const Node *current_node = &start_node;
             while (current_node)
             {
                 auto col_edge = incoming(*current_node, KnitEdgeDirectionC::COLUMN);
@@ -260,12 +266,12 @@ namespace knitsim
                         }
                     }
                 }
-                auto rel_edges = outgoing(*current_node, KnitEdgeDirectionC::ROW);
-                if (rel_edges.size() == 0)
+                auto row_edges = outgoing(*current_node, KnitEdgeDirectionC::ROW);
+                if (row_edges.size() == 0)
                 {
                     return RowResult(nodes, false);
                 }
-                for (auto edge : rel_edges)
+                for (auto edge : row_edges)
                 {
                     if (edge.to == start_node.id)
                     {
@@ -273,7 +279,9 @@ namespace knitsim
                     }
                     else
                     {
-                        current_node = node_incomings.at(edge.to)[0];
+                        std::cout << "Row search for " << start_node.id << ": adding node:" << edge.to << std::endl;
+
+                        current_node = node_map.at(edge.to);
                         nodes.push_back(*current_node);
                         break;
                     }
@@ -301,6 +309,15 @@ namespace knitsim
             }
             return center / nodes.size();
         }
+        std::vector<Eigen::Vector3f> knitPath(uint32_t node_id) const
+        {
+            if (knitpaths.find(node_id) != knitpaths.end())
+            {
+                return knitpaths.at(node_id);
+            }
+            return {};
+        }
+        void computeKnitPaths();
         void computeHeuristicLayout();
         void calculateNormals();
         void recenter(Eigen::Vector3f offset = Eigen::Vector3f(0, 0, 0), float dampening = 0.1);

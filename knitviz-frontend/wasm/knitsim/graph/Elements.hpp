@@ -19,7 +19,7 @@ namespace knitsim
         KnitNodeTypeC type;
         KnitModeC mode;
         KnitSideC side;
-        uint32_t previous_node_id;
+        int32_t previous_node_id;
         Eigen::Vector3f position;
         Eigen::Vector3f normal;
         Eigen::Vector3f next_dir;

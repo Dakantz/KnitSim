@@ -74,7 +74,7 @@ namespace knitsim
 
                     auto edge_angle = edge_dir.dot(node->normal);
                     auto flattening_force = edge_angle * cfg.f_flattening_factor;
-                    forces[other_node.id] += edge_dir * flattening_force;
+                    forces[other_node.id] += -node->normal * flattening_force;
                 }
                 forces[node->id] += node_force;
             }

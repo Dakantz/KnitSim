@@ -1,14 +1,14 @@
 <template>
     <main>
         <div class="pattern_viz">
-            <div>
-                <button @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k }}</button>
-            </div>
             <div class="code_editor">
+                <div>
+                    <button @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k }}</button>
+                </div>
                 <Code v-model="state.code">
                 </Code>
+                <button @click="runCode">Run</button>
             </div>
-            <button @click="runCode">Run</button>
             <div id="pattern_viz_3d">
             </div>
         </div>
@@ -91,10 +91,10 @@ const runCode = () => {
 <style lang="scss">
 .pattern_viz {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     justify-content: center;
     align-items: center;
-    height: 80vh;
+    height: 90vh;
     width: 95vw;
 }
 
@@ -103,13 +103,14 @@ const runCode = () => {
     flex-direction: column;
     justify-content: start;
     align-items: start;
-    height: 50%;
+    height: 90%;
     width: 100%;
 }
 
 #pattern_viz_3d {
-    height: 50%;
+    height: 90%;
     width: 100%;
+    border: 1px solid rgb(168, 212, 190);
 }
 
 .threed_graph {

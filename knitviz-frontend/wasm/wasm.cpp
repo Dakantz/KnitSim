@@ -33,10 +33,11 @@ EMSCRIPTEN_BINDINGS(wasm_module)
         .field("type", &Node::type)
         .field("mode", &Node::mode)
         .field("side", &Node::side)
-        .field("previous_node", &Node::previous_node_id)
+        .field("previous_node_id", &Node::previous_node_id)
         .field("position", &Node::position)
         .field("normal", &Node::normal)
         .field("next_dir", &Node::next_dir);
+
     value_object<Edge>("Edge")
         .field("id", &Edge::id)
         .field("from", &Edge::from)
@@ -45,6 +46,7 @@ EMSCRIPTEN_BINDINGS(wasm_module)
 
     register_vector<Node>("NodeVector");
     register_vector<Edge>("EdgeVector");
+    register_vector<Eigen::Vector3f>("Vector3fVector");
 
     register_optional<Node>();
     register_optional<Edge>();
@@ -86,17 +88,15 @@ EMSCRIPTEN_BINDINGS(wasm_module)
         .property("color", &YarnSpecC::color)
         .property("weight", &YarnSpecC::weight);
 
-    class_<GraphConfig>("GraphConfig")
-        .constructor<>()
-        .constructor<float, float, float, float, float, float, Eigen::Vector3f, Eigen::Vector3f>()
-        .property("step_size_x", &GraphConfig::step_size_x)
-        .property("step_size_y", &GraphConfig::step_size_y)
-        .property("offset_bidirectional", &GraphConfig::offset_bidirectional)
-        .property("offset_purl", &GraphConfig::offset_purl)
-        .property("offset_knit", &GraphConfig::offset_knit)
-        .property("yarn_thickness", &GraphConfig::yarn_thickness)
-        .property("up_vector", &GraphConfig::up_vector)
-        .property("right_vector", &GraphConfig::right_vector);
+    value_object<GraphConfig>("GraphConfig")
+        .field("step_size_x", &GraphConfig::step_size_x)
+        .field("step_size_y", &GraphConfig::step_size_y)
+        .field("offset_bidirectional", &GraphConfig::offset_bidirectional)
+        .field("offset_purl", &GraphConfig::offset_purl)
+        .field("offset_knit", &GraphConfig::offset_knit)
+        .field("yarn_thickness", &GraphConfig::yarn_thickness)
+        .field("up_vector", &GraphConfig::up_vector)
+        .field("right_vector", &GraphConfig::right_vector);
 
     class_<TraversalResult>("TraversalResult")
         .constructor<std::vector<Node>, std::vector<Edge>>()
@@ -124,8 +124,12 @@ EMSCRIPTEN_BINDINGS(wasm_module)
         .function("getFromNodes", &KnitGraphC::getFromNodes)
         .function("getToNodes", &KnitGraphC::getToNodes)
         .function("edgesOf", &KnitGraphC::edgesOf)
+        .function("row", &KnitGraphC::row)
+        .function("knitPath", &KnitGraphC::knitPath)
+        .function("computeKnitPaths", &KnitGraphC::computeKnitPaths)
         .function("computeHeuristicLayout", &KnitGraphC::computeHeuristicLayout)
-        .function("row", &KnitGraphC::row);
+        .function("calculateNormals", &KnitGraphC::calculateNormals)
+        .function("recenter", &KnitGraphC::recenter);
 
     value_object<KnitSimConfig>("KnitSimConfig")
         .field("offset_scaler", &KnitSimConfig::offset_scaler)
