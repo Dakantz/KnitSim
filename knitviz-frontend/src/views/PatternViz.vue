@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 import Code from '@/components/editor/Code.vue';
-import { KnitGraph } from '@/knitgraph';
-import { PatternViz3D } from '@/knitgraph/viz';
+import { KnitGraph } from '../knitgraph';
+import { PatternViz3D } from '../knitgraph/viz';
 import { reactive, ref } from 'vue';
 const state = reactive({
     graph: null as KnitGraph | null,

@@ -7,10 +7,18 @@ import { OrbitControls } from 'three/examples/jsm/Addons.js'
 import { fromVec3, toVec3 } from './helpers'
 import * as mjs from 'mathjs'
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js'
+import type { GraphConfig, KnitGraphC, MainModule, NodeC } from './sim/knitsim-lib'
+import MainModuleFactory from './sim/knitsim-lib'
 // 3D circle packing based upon https://observablehq.com/@analyzer2004/3d-circle-packing
 // expanded with Topic links and fixed height of nodes (TODO)
+let KnitSimModule: MainModule = null;
 
+MainModuleFactory({
 
+}).then((module) => {
+    KnitSimModule = module
+    console.log("KnitSimModule", KnitSimModule)
+}).catch(console.error)
 export class KnitNode3D extends KnitNode {
     position: THREE.Vector3
     curve: THREE.Curve<THREE.Vector3>
@@ -31,6 +39,7 @@ export class KnitNode3D extends KnitNode {
     }
 }
 export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
+    private graph_wasm: KnitGraphC
     constructor(graph: KnitGraph) {
         super()
         for (let key in graph) {
@@ -42,6 +51,45 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
             let node = graph.nodes[key]
             this.nodes[node.id] = new KnitNode3D(node, new THREE.Vector3())
         }
+    }
+    async initGraphWASM(cfg: GraphConfig) {
+        if(this.graph_wasm){
+            return this.graph_wasm
+        }
+        if (!KnitSimModule) {
+            KnitSimModule = await MainModuleFactory({})
+        }
+        let node_vec = new KnitSimModule.NodeVector()
+        let edge_vec = new KnitSimModule.EdgeVector()
+        for (let key in this.nodes) {
+            let node = this.nodes[key]
+            node_vec.push_back({
+                id: node.id,
+                line_number: node.line_number,
+                row_number: node.row_number,
+                col_number: node.col_number,
+                start_of_row: node.start_of_row,
+                previous_node: node.previous_node.id,
+                type: KnitSimModule.KnitNodeTypeC[node.type],
+                mode: KnitSimModule.KnitModeC.KnitModeC_FLAT,
+                side: KnitSimModule.KnitSideC[node.side],
+                position: new KnitSimModule.Vector3f(node.position.x, node.position.y, node.position.z),
+                normal: new KnitSimModule.Vector3f(node.normal.x, node.normal.y, node.normal.z),
+                next_dir: new KnitSimModule.Vector3f(0, 0, 0)
+            })
+        }
+
+        for (let edge of this.edges) {
+            edge_vec.push_back({
+                from: edge.from,
+                to: edge.to,
+                direction: KnitSimModule.KnitEdgeDirectionC[edge.direction],
+                id: edge_vec.size()
+            })
+        }
+        let graph = new KnitSimModule.KnitGraphC(cfg, node_vec, edge_vec)
+        this.graph_wasm = graph
+        return graph
     }
 }
 
@@ -92,7 +140,6 @@ export class PatternViz3D {
         let node_ids = Object.keys(this.graph.nodes).map(k => parseInt(k)).sort((a, b) => a - b)
         this.graph.nodes[node_ids[0]].position = position
         console.log("Node ids", node_ids)
-        let visited: Record<number, KnitNode3D> = {}
         let up_vector = new THREE.Vector3(1, 0, 0)
         let right_vector = new THREE.Vector3(0, 0, 1)
         let start_normal = up_vector.clone()
@@ -152,7 +199,6 @@ export class PatternViz3D {
             }
         }
         let id = 0
-        console.log("Visited", visited)
         for (const node_id in this.graph.nodes) {
             const node = this.graph.nodes[node_id]
             let neighbours = this.graph.neighbours(node)
