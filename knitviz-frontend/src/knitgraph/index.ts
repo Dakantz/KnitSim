@@ -91,6 +91,7 @@ export class KnittingState {
         this.graph.edges.push(edge);
     }
     cast_on(n: number, mode: KnitMode = KnitMode.FLAT) {
+        mode = (mode as string).toUpperCase() as KnitMode;
         this.previous_node = undefined;
         this.last_end_node = undefined;
         this.row_number = 0;

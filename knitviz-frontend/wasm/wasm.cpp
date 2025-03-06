@@ -48,6 +48,8 @@ EMSCRIPTEN_BINDINGS(wasm_module)
     register_vector<Edge>("EdgeVector");
     register_vector<Eigen::Vector3f>("Vector3fVector");
 
+    // register_map<uint32_t, Eigen::Vector3f>("MapIdVector3f");
+
     register_optional<Node>();
     register_optional<Edge>();
     register_optional<KnitEdgeDirectionC>();
@@ -134,10 +136,13 @@ EMSCRIPTEN_BINDINGS(wasm_module)
     value_object<KnitSimConfig>("KnitSimConfig")
         .field("offset_scaler", &KnitSimConfig::offset_scaler)
         .field("f_flattening_factor", &KnitSimConfig::f_flattening_factor)
-        .field("f_expansion_factor", &KnitSimConfig::f_expansion_factor);
+        .field("f_expansion_factor", &KnitSimConfig::f_expansion_factor)
+        .field("f_repel_factor", &KnitSimConfig::f_repel_factor);
 
     class_<KnitSim>("KnitSim")
         .constructor<KnitGraphC &, KnitSimConfig>()
         .function("initialize", &KnitSim::initialize)
-        .function("step", &KnitSim::step);
+        .function("step", &KnitSim::step)
+        .function("force", &KnitSim::getForce)
+        ;
 }
