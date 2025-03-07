@@ -20,23 +20,26 @@ void knitsim::KnitGraphC::computeHeuristicLayout()
         // std::cout << "Node id:" << node_id << std::endl;
         auto node = node_map[node_id];
         auto row = this->row(*node);
-        Eigen::Vector3f offset_position;
+        Eigen::Vector3f offset_position = Eigen::Vector3f(0, 0, 0);
         float x_offset_modifier = node->side == KnitSideC::WRONG ? 1 : -1;
         auto node_it = std::find_if(row.nodes.begin(), row.nodes.end(), [node_id](const Node &node)
                                     { return node.id == node_id; });
-        // std::cout << "Node:" << node->id << " row size:" << row.nodes.size() << ", closed:" << row.closed << std::endl;
+        std::cout << "Node:" << node->id << " row size:" << row.nodes.size() << ", closed:" << row.closed << std::endl;
         auto start_node = std::find_if(row.nodes.begin(), row.nodes.end(), [](const Node &node)
                                        { return node.start_of_row; });
         if (row.closed && start_node != row.nodes.end())
         {
-            // std::cout << "row is closed" << std::endl;
+            // if (node->type != KnitNodeTypeC::CAST_ON)
+            // {
             auto node_it_offset = node_it - start_node;
+            // std::cout << "iterator position" << node_it_offset << std::endl;
             float angle = x_offset_modifier * ((float)node_it_offset / row.nodes.size()) * M_PI * 2;
             float radius = row.nodes.size() * this->config.step_size_x / M_PI;
             float x = radius * cos(angle);
             float y = radius * sin(angle);
-            Eigen::Vector3f circle_pos = this->config.up_vector * x + this->config.right_vector * y;
-            node->position = (*start_node).position + circle_pos + plane_normal * config.step_size_y;
+            Eigen::Vector3f circle_pos = this->config.up_vector * x + this->config.right_vector * y - this->config.up_vector * radius;
+            node->position = (*start_node).position + circle_pos + plane_normal * config.step_size_y * node_it_offset / row.nodes.size();
+            // }
         }
         else
         {
@@ -65,27 +68,30 @@ void knitsim::KnitGraphC::calculateNormals()
     for (auto &node : nodes)
     {
         auto neighbors = this->neighbours(node);
+        // std::cout << "Node:" << node.id << " neighbors:" << neighbors.size() << std::endl;
         if (neighbors.size() < 2)
         {
             continue;
         }
 
         std::vector<Eigen::Vector3f> positions;
-        positions.push_back(node.position);
+        // positions.push_back(node.position);
         for (auto neighbor : neighbors)
         {
             positions.push_back(neighbor.position);
+            // std::cout << "Neighbor:" << neighbor.id << "pos" << neighbor.position << std::endl;
         }
         Eigen::MatrixXf X(positions.size(), 3);
         for (size_t i = 0; i < positions.size(); i++)
         {
             X.row(i) = positions[i].transpose();
         }
-        auto XtX = X.transpose() * X;
+        Eigen::Matrix<float, 3, 3> XtX = X.transpose() * X;
         Eigen::EigenSolver<Eigen::MatrixXf> es(XtX);
         if (es.info() != Eigen::Success)
         {
-            throw std::runtime_error("Eigen solver failed");
+            std::cerr << "EigenSolver failed for" << node.id << std::endl;
+            continue;
         }
         auto eigenvalues = es.eigenvalues();
         auto eigenvectors = es.eigenvectors();
@@ -145,8 +151,6 @@ void knitsim::KnitGraphC::computeKnitPaths()
             offset *= -0.9;
         }
         node_offseted_pos += node.normal * offset;
-
-
 
         std::vector<Eigen::Vector3f> path;
         path.push_back(node_offseted_pos);

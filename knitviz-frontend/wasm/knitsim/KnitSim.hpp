@@ -112,8 +112,12 @@ namespace knitsim
         }
         float step(float time, float damping = 0.2, float force_damping = 0.2)
         {
+            std::cout << "Calculating Normals" << std::endl;
             graph.calculateNormals();
+            std::cout << "Calculating Forces" << std::endl;
             float total = computeForces();
+            std::cout << "Total Force:" << total << std::endl;
+            std::cout << "Stepping" << std::endl;
             float acc_differences = 0;
             for (auto &kv : wrappers)
             {

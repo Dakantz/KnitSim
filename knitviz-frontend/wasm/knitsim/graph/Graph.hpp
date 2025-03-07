@@ -185,15 +185,14 @@ namespace knitsim
         std::vector<Node> neighbours(Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const
         {
             std::vector<Node> result;
-            for (auto edge : edgesOf(node, direction))
+            for (auto edge : edges)
             {
-                if (edge.from == node.id)
+                if ((direction == std::nullopt || edge.direction == direction))
                 {
-                    result.push_back(getNode(edge.to));
-                }
-                else
-                {
-                    result.push_back(getNode(edge.from));
+                    if (edge.from == node.id)
+                        result.push_back(getNode(edge.to));
+                    else if (edge.to == node.id)
+                        result.push_back(getNode(edge.from));
                 }
             }
             return result;
@@ -279,7 +278,7 @@ namespace knitsim
                     }
                     else
                     {
-                        std::cout << "Row search for " << start_node.id << ": adding node:" << edge.to << std::endl;
+                        // std::cout << "Row search for " << start_node.id << ": adding node:" << edge.to << std::endl;
 
                         current_node = node_map.at(edge.to);
                         nodes.push_back(*current_node);
