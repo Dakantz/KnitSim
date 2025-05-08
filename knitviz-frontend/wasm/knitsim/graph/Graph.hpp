@@ -27,6 +27,8 @@ namespace knitsim
             knitpaths;
         GraphConfig config;
 
+        std::map<uint32_t, RowResult> row_cache;
+
     public:
         KnitGraphC(GraphConfig &config, std::vector<Node> &nodes, std::vector<Edge> &edges)
         {
@@ -36,6 +38,7 @@ namespace knitsim
         }
         void setConfig(GraphConfig &config)
         {
+            this->row_cache.clear();
             this->config = config;
         }
         const GraphConfig &getConfig() const
@@ -44,6 +47,7 @@ namespace knitsim
         }
         void setNodes(std::vector<Node> &nodes)
         {
+            this->row_cache.clear();
             this->nodes = nodes;
             node_map.clear();
             for (auto &node : this->nodes)
@@ -55,6 +59,7 @@ namespace knitsim
         }
         void setEdges(std::vector<Edge> &edges)
         {
+            this->row_cache.clear();
             this->edges = edges;
             node_outgoings.clear();
             node_incomings.clear();
@@ -278,25 +283,33 @@ namespace knitsim
                     }
                     else
                     {
-                        // std::cout << "Row search for " << start_node.id << ": adding node:" << edge.to << std::endl;
-
                         current_node = node_map.at(edge.to);
                         nodes.push_back(*current_node);
+                        // std::cout << "Row search for " << start_node.id << ": adding node:" << edge.to << std::endl;
                         break;
                     }
                 }
             }
             return RowResult(nodes, false);
         }
-        RowResult row(Node &start_node) const
+        RowResult row(Node &start_node)
         {
-            auto res = rowUnordered(start_node);
+            // if (this->row_cache.find(start_node.id) != this->row_cache.end())
+            // {
+            //     return this->row_cache.at(start_node.id);
+            // }
+            RowResult res = rowUnordered(start_node);
             auto start_iter = std::find_if(res.nodes.begin(), res.nodes.end(), [](const Node &node)
                                            { return node.start_of_row == true; });
             if (start_iter != res.nodes.end() && start_iter != res.nodes.begin())
             {
                 std::rotate(res.nodes.begin(), start_iter, res.nodes.end());
             }
+            // this->row_cache[start_node.id] = res;
+            // for (auto node : res.nodes)
+            // {
+            //     this->row_cache[node.id] = res;
+            // }
             return res;
         }
         Eigen::Vector3f center() const

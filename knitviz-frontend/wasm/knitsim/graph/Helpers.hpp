@@ -68,5 +68,19 @@ namespace knitsim
             this->nodes = nodes;
             this->closed = closed;
         }
+        RowResult(const RowResult &other)
+        {
+            this->nodes = other.nodes;
+            this->closed = other.closed;
+        }
+        RowResult &operator=(const RowResult &other)
+        {
+            if (this != &other)
+            {
+                this->nodes = other.nodes;
+                this->closed = other.closed;
+            }
+            return *this;
+        }
     };
 }

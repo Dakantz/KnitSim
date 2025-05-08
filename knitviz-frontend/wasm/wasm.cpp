@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <emscripten/bind.h>
+#include <sanitizer/lsan_interface.h>
 
 using namespace emscripten;
 using namespace knitsim;
@@ -19,6 +20,8 @@ std::string getExceptionMessage(intptr_t exceptionPtr)
 
 EMSCRIPTEN_BINDINGS(wasm_module)
 {
+
+    // emscripten::function("doLeakCheck", &__lsan_do_recoverable_leak_check);
     emscripten::function("getExceptionMessage", &getExceptionMessage);
 
     // function("getTotal", &Order::calculateTotal);
@@ -143,6 +146,5 @@ EMSCRIPTEN_BINDINGS(wasm_module)
         .constructor<KnitGraphC &, KnitSimConfig>()
         .function("initialize", &KnitSim::initialize)
         .function("step", &KnitSim::step)
-        .function("force", &KnitSim::getForce)
-        ;
+        .function("force", &KnitSim::getForce);
 }

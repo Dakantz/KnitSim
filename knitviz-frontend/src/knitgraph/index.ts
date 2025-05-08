@@ -42,10 +42,10 @@ export class KnitNode {
     start_of_row: boolean = false;
     side: KnitSide = KnitSide.RIGHT;
     previous_node?: KnitNode;
-    constructor(type: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1), start_row: boolean = false, side: KnitSide = KnitSide.RIGHT) {
+    constructor(type: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1), start_row: boolean = false, side: KnitSide = KnitSide.RIGHT, id: number = null) {
         this.yarnSpec = yarnSpec;
         this.type = type;
-        this.id = KnitNode.idCounter++;
+        this.id = id || KnitNode.idCounter++;
         this.start_of_row = start_row;
         this.side = side;
     }
@@ -74,7 +74,7 @@ export class KnittingState {
     constructor(graph: KnitGraph) {
         this.graph = graph;
     }
-    call_position(offset = 3): number {
+    private call_position(offset = 3): number {
         let stack = (new Error()).stack?.split("\n");
         let error_line = stack ? stack[offset] : undefined;
         let line = error_line?.match(/:(\d+):\d+\)$/)[1]

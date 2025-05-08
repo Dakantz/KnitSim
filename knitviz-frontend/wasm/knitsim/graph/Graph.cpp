@@ -22,27 +22,30 @@ void knitsim::KnitGraphC::computeHeuristicLayout()
         auto row = this->row(*node);
         Eigen::Vector3f offset_position = Eigen::Vector3f(0, 0, 0);
         float x_offset_modifier = node->side == KnitSideC::WRONG ? 1 : -1;
-        auto node_it = std::find_if(row.nodes.begin(), row.nodes.end(), [node_id](const Node &node)
-                                    { return node.id == node_id; });
-        std::cout << "Node:" << node->id << " row size:" << row.nodes.size() << ", closed:" << row.closed << std::endl;
-        auto start_node = std::find_if(row.nodes.begin(), row.nodes.end(), [](const Node &node)
-                                       { return node.start_of_row; });
-        if (row.closed && start_node != row.nodes.end())
+        auto node_it = std::find_if(row.nodes.begin(), row.nodes.end(), [node_id](const Node &n)
+                                    { return n.id == node_id; });
+        // std::cout << "Node:" << node->id << " row size:" << row.nodes.size() << ", closed:" << row.closed << std::endl;
+        auto start_node = std::find_if(row.nodes.begin(), row.nodes.end(), [](const Node &n)
+                                       { return n.start_of_row == true; });
+        if (row.closed)
         {
-            // if (node->type != KnitNodeTypeC::CAST_ON)
-            // {
-            auto node_it_offset = node_it - start_node;
-            // std::cout << "iterator position" << node_it_offset << std::endl;
-            float angle = x_offset_modifier * ((float)node_it_offset / row.nodes.size()) * M_PI * 2;
-            float radius = row.nodes.size() * this->config.step_size_x / M_PI;
-            float x = radius * cos(angle);
-            float y = radius * sin(angle);
-            Eigen::Vector3f circle_pos = this->config.up_vector * x + this->config.right_vector * y - this->config.up_vector * radius;
-            node->position = (*start_node).position + circle_pos + plane_normal * config.step_size_y * node_it_offset / row.nodes.size();
-            // }
+            if (start_node != row.nodes.end())
+            {
+                auto node_it_offset = node_it - start_node;
+                float progress = ((float)node_it_offset) / row.nodes.size();
+                std::cout << "iterator position: " << progress << ", start:" << node_it->start_of_row << ", size: " << row.nodes.size() << std::endl;
+                float angle = x_offset_modifier * progress * M_PI * 2;
+                float radius = row.nodes.size() * this->config.step_size_x / M_PI;
+                float x = radius * cos(angle);
+                float y = radius * sin(angle);
+                Eigen::Vector3f circle_pos = this->config.up_vector * x + this->config.right_vector * y - this->config.up_vector * radius;
+                node->position = (*start_node).position + circle_pos + plane_normal * config.step_size_y * progress;
+            }
         }
         else
         {
+            // std::cerr << "Node not found in row" << node->id << "/" << row.nodes.size() << std::endl;
+
             offset_position = config.up_vector * (x_offset_modifier * config.step_size_x);
         }
         auto edges = this->outgoing(*node);
@@ -52,7 +55,11 @@ void knitsim::KnitGraphC::computeHeuristicLayout()
             switch (edge.direction)
             {
             case KnitEdgeDirectionC::ROW:
-                to_node->position = node->position + offset_position;
+                if (!row.closed)
+                {
+                    // if row is not closed, we need to add the offset position
+                    to_node->position = node->position + offset_position;
+                }
                 break;
             case KnitEdgeDirectionC::COLUMN:
                 to_node->position = node->position + plane_normal * config.step_size_y;
@@ -68,33 +75,36 @@ void knitsim::KnitGraphC::calculateNormals()
     for (auto &node : nodes)
     {
         auto neighbors = this->neighbours(node);
-        // std::cout << "Node:" << node.id << " neighbors:" << neighbors.size() << std::endl;
+        std::cout << "Node:" << node.id << " neighbors:" << neighbors.size() << std::endl;
         if (neighbors.size() < 2)
         {
             continue;
         }
 
-        std::vector<Eigen::Vector3f> positions;
+        std::vector<Eigen::Vector3f> positions = {node.position};
+        Eigen::Vector3f node_pos_sum = node.position;
         // positions.push_back(node.position);
         for (auto neighbor : neighbors)
         {
             positions.push_back(neighbor.position);
+            node_pos_sum += neighbor.position;
             // std::cout << "Neighbor:" << neighbor.id << "pos" << neighbor.position << std::endl;
         }
+        Eigen::Vector3f node_pos_avg = node_pos_sum / (neighbors.size() + 1);
         Eigen::MatrixXf X(positions.size(), 3);
         for (size_t i = 0; i < positions.size(); i++)
         {
-            X.row(i) = positions[i].transpose();
+            X.row(i) = (positions[i] - node_pos_avg).transpose();
         }
-        Eigen::Matrix<float, 3, 3> XtX = X.transpose() * X;
-        Eigen::EigenSolver<Eigen::MatrixXf> es(XtX);
+        // Eigen::Matrix<float, 3, 3> XtX = X.transpose() * X;
+        Eigen::JacobiSVD<Eigen::MatrixXf> es(X.transpose(), Eigen::ComputeThinU | Eigen::ComputeThinV);
         if (es.info() != Eigen::Success)
         {
             std::cerr << "EigenSolver failed for" << node.id << std::endl;
             continue;
         }
-        auto eigenvalues = es.eigenvalues();
-        auto eigenvectors = es.eigenvectors();
+        auto eigenvalues = es.singularValues();
+        auto eigenvectors = es.matrixU();
 
         // std::cout << "Eigenvalues:" << std::endl;
         // std::cout << eigenvalues << std::endl;
