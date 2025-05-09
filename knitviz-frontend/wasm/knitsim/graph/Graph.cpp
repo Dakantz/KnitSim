@@ -33,7 +33,7 @@ void knitsim::KnitGraphC::computeHeuristicLayout()
             {
                 auto node_it_offset = node_it - start_node;
                 float progress = ((float)node_it_offset) / row.nodes.size();
-                std::cout << "iterator position: " << progress << ", start:" << node_it->start_of_row << ", size: " << row.nodes.size() << std::endl;
+                // std::cout << "iterator position: " << progress << ", start:" << node_it->start_of_row << ", size: " << row.nodes.size() << std::endl;
                 float angle = x_offset_modifier * progress * M_PI * 2;
                 float radius = row.nodes.size() * this->config.step_size_x / M_PI;
                 float x = radius * cos(angle);
@@ -75,7 +75,7 @@ void knitsim::KnitGraphC::calculateNormals()
     for (auto &node : nodes)
     {
         auto neighbors = this->neighbours(node);
-        std::cout << "Node:" << node.id << " neighbors:" << neighbors.size() << std::endl;
+        // std::cout << "Node:" << node.id << " neighbors:" << neighbors.size() << std::endl;
         if (neighbors.size() < 2)
         {
             continue;

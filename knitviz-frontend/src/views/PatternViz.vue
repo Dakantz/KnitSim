@@ -6,7 +6,7 @@
                     <button @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k
                     }}</button>
                 </div>
-                <Code v-model="state.code">
+                <Code>
                 </Code>
                 <button @click="runCode">Run</button>
                 <div>
@@ -28,8 +28,14 @@
 <script setup lang="ts">
 import Code from '@/components/editor/Code.vue';
 import { KnitGraph } from '../knitgraph';
-import { PatternViz3D } from '../knitgraph/viz';
-import { onUnmounted, reactive, ref, toRaw } from 'vue';
+import { PatternViz3D, PatternViz3DEvents } from '../knitgraph/3d/viz';
+import { onUnmounted, reactive, ref, toRaw, watch } from 'vue';
+import { useEditorStore } from '@/stores/editor';
+import { KnitGraphOverlayManager } from '@/knitgraph/3d/overlay';
+import type { EditorView } from 'codemirror';
+
+const store = useEditorStore();
+
 const state = reactive({
     graph: null as KnitGraph | null,
     simulation: {
@@ -92,6 +98,7 @@ const state = reactive({
     },
     code: ref(''),
     viz: null as PatternViz3D | null,
+    overlay_manager: null as KnitGraphOverlayManager | null,
 
 })
 onUnmounted(() => {
@@ -99,14 +106,34 @@ onUnmounted(() => {
         stopSim()
     }
 })
+watch(() => state.code, (newCode) => {
+    store.setCode(newCode)
+})
 const runCode = () => {
     if (state.viz) {
         // state.viz.destroy()
     }
     state.graph = new KnitGraph()
-    state.graph.execute(state.code)
+    state.graph.execute(store.code)
     console.log('Ran code:', state.graph)
-    state.viz = new PatternViz3D('#pattern_viz_3d', state.graph)
+    state.viz = new PatternViz3D('#pattern_viz_3d', state.graph as KnitGraph)
+    state.overlay_manager = new KnitGraphOverlayManager(state.viz as PatternViz3D,
+        store.view as EditorView)
+    state.viz.on(PatternViz3DEvents.mouseover, (e) => {
+        if (state.overlay_manager) {
+            state.overlay_manager.addOverlay(e)
+        }
+    })
+    state.viz.on(PatternViz3DEvents.mouseout, (e) => {
+        if (state.overlay_manager) {
+            state.overlay_manager.removeOverlay(e)
+        }
+    })
+    state.viz.on(PatternViz3DEvents.render, (e) => {
+        if (state.overlay_manager) {
+            state.overlay_manager.update()
+        }
+    })
 }
 const startSim = () => {
     state.simulation.running = true

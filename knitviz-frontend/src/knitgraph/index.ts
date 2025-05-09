@@ -70,13 +70,13 @@ export class KnittingState {
     last_start_node?: KnitNode;
     row_number: number = 0;
     col_number: number = 0;
-
+    private offset = 3
     constructor(graph: KnitGraph) {
         this.graph = graph;
     }
-    private call_position(offset = 3): number {
+    private call_position(): number {
         let stack = (new Error()).stack?.split("\n");
-        let error_line = stack ? stack[offset] : undefined;
+        let error_line = stack ? stack[this.offset] : undefined;
         let line = error_line?.match(/:(\d+):\d+\)$/)[1]
         return parseInt(line as string);
     }
@@ -97,7 +97,10 @@ export class KnittingState {
         this.row_number = 0;
         this.col_number = 0;
         this.round_knit = mode == KnitMode.ROUND;
+        this.offset++
+        // as we are on level deeper in the stack, we need to go back one more level
         this.knit(n, KnitNodeType.CAST_ON);
+        this.offset--;
         this.end_row();
     }
     knit(n: number, type: KnitNodeType, procedal: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1)) {

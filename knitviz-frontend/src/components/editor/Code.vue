@@ -11,41 +11,18 @@ import { EditorState } from "@codemirror/state"
 import { basicSetup } from "codemirror";
 import { computed, onMounted, reactive, ref, useTemplateRef, watch } from "vue";
 import { javascript } from "@codemirror/lang-javascript";
+import { useEditorStore } from '@/stores/editor';
+
 const editor = useTemplateRef('editor');
+const store = useEditorStore();
 const view = ref(null as EditorView | null);
 const state = reactive({
     collapsed: false
 })
-const doc = defineModel(
-    {
-        default: `knitRows(10, 'k1, p1')`,
-        type: String
-    })
-watch(doc, (newVal) => {
-    if (view.value) {
-        view.value.dispatch({
-            changes: {
-                from: 0,
-                to: view.value.state.doc.length,
-                insert: newVal
-            }
-        })
-    }
-})
 onMounted(() => {
-    view.value = new EditorView({
-        state: EditorState.create({
-            doc: doc.value,
-            extensions: [basicSetup, javascript(),
-                EditorView.updateListener.of((v) => {
-                    doc.value = v.state.doc.toString();
-                })
-            ]
-        }),
-        parent: editor.value as HTMLElement,
-    })
+    store.setViewFromDiv(editor.value);
 });
-const view_height =computed(()=>{
+const view_height = computed(() => {
     return state.collapsed ? '10vh' : '50vh';
 })
 

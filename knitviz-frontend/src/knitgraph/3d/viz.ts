@@ -2,17 +2,19 @@
 
 import * as d3 from 'd3'
 import * as THREE from 'three'
-import { KnitEdge, KnitEdgeDirection, KnitGraph, KnitNode, KnitNodeType, KnitSide } from '.'
+import { KnitEdge, KnitEdgeDirection, KnitGraph, KnitNode, KnitNodeType, KnitSide } from '..'
 import { OrbitControls } from 'three/examples/jsm/Addons.js'
-import { fromVec3, toVec3 } from './helpers'
+import { fromVec3, toVec3 } from '../helpers'
 import * as mjs from 'mathjs'
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js'
-import type { ClassHandle, GraphConfig, KnitGraphC, KnitSim, MainModule, NodeC } from './sim/knitsim-lib'
-import KnitSimLib from './sim/knitsim-lib'
+import type { ClassHandle, GraphConfig, KnitGraphC, KnitSim, MainModule, NodeC } from '../sim/knitsim-lib'
+import KnitSimLib from '../sim/knitsim-lib'
 import { toRaw } from 'vue'
+import { KnitGraph3D } from './graph'
+import type { KnitNode3D } from './node'
 // 3D circle packing based upon https://observablehq.com/@analyzer2004/3d-circle-packing
 // expanded with Topic links and fixed height of nodes (TODO)
-let KnitSimModule: MainModule = null;
+export let KnitSimModule: MainModule = null;
 
 KnitSimLib({
 }).then((module) => {
@@ -21,203 +23,12 @@ KnitSimLib({
 }).catch(console.error)
 
 type WASMValueType<T extends ClassHandle> = Exclude<T, ClassHandle>;
-export class KnitNode3D extends KnitNode {
-    position: THREE.Vector3 = new THREE.Vector3()
-    curve: THREE.CatmullRomCurve3
-    yarn_geometry: THREE.TubeGeometry
-    material: THREE.Material
-    mesh: THREE.Mesh
-    normal: THREE.Vector3 = new THREE.Vector3()
-    force: THREE.Vector3 = new THREE.Vector3()
-
-    node_sphere_mesh: THREE.Mesh
-    normal_helper: THREE.ArrowHelper
-    outgoing_helpers: THREE.ArrowHelper[] = []
-    force_helper: THREE.ArrowHelper
-
-    row_number_text: HTMLElement = null
-    line_number_element: HTMLElement = null
-    constructor(node: KnitNode, position: THREE.Vector3) {
-        super(node.type, node.yarnSpec, node.start_of_row, node.side, node.id)
-        for (let key in node) {
-            this[key] = node[key]
-        }
-        this.position = new THREE.Vector3()
-    }
-
-    preRender(viz: PatternViz3D) {
-        if (this.node_sphere_mesh)
-            this.node_sphere_mesh.visible = viz.show_nodes
-        if (this.normal_helper)
-            this.normal_helper.visible = viz.show_normals
-        if (this.force_helper)
-            this.force_helper.visible = viz.show_forces
-        for (let helper of this.outgoing_helpers) {
-            helper.visible = viz.show_edges
-        }
-        if (viz.changed_highlighted_node) {
-            this.node_sphere_mesh.material = viz.pool.sphere_material[this.side]
-            if (this.row_number_text) {
-                viz.three_div.removeChild(this.row_number_text)
-                this.row_number_text = null
-            }
-        }
-        if (this.row_number_text) {
-            let bounds = viz.renderer.domElement.getBoundingClientRect()
-            const vector = this.position.clone().project(viz.camera);
-            let x = bounds.x + (vector.x * 0.5 + 0.5) * bounds.width;
-            let y = bounds.y + (vector.y * -0.5 + 0.5) * bounds.height;
-            this.row_number_text.style.left = `${x}px`;
-            this.row_number_text.style.top = `${y}px`;
-        }
-    }
-    highlightPreRender(viz: PatternViz3D, color: number) {
-        if (this.node_sphere_mesh) {
-            this.node_sphere_mesh.material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.7 });
-            this.node_sphere_mesh.visible = true
-        }
-
-    }
-
+export enum PatternViz3DEvents {
+    click = "click",
+    mouseover = "mouseover",
+    mouseout = "mouseout",
+    render = "render"
 }
-export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
-    graph_wasm: KnitGraphC
-    graph_sim: KnitSim
-    cfg: GraphConfig
-    constructor(graph: KnitGraph) {
-        super()
-        for (let key in graph) {
-            this[key] = toRaw(graph[key])
-        }
-
-        this.edges = [...graph.edges]
-        this.edges = this.edges.map((edge) => toRaw(edge))
-        this.nodes = {}
-        for (let key in graph.nodes) {
-            let node = graph.nodes[key]
-            this.nodes[node.id] = new KnitNode3D(toRaw(node), new THREE.Vector3())
-        }
-
-    }
-    step(time: number) {
-
-        if (!this.graph_wasm) {
-            return
-        }
-        console.log("Stepping sim", time, this.graph_wasm, this.graph_wasm.isDeleted())
-        let accumulated_movement = this.graph_sim.step(time, 0.1, 0.2)
-        console.log("Accumulated movement", accumulated_movement)
-        this.graph_wasm.computeKnitPaths()
-        this.syncGraphWASM()
-        return accumulated_movement
-    }
-
-    syncGraphWASM() {
-        if (!this.graph_wasm) {
-            return
-        }
-        for (let key in this.nodes) {
-            let node = this.nodes[key]
-            let wasm_node = this.graph_wasm.getNode(node.id)
-            node.position.set(wasm_node.position.x, wasm_node.position.y, wasm_node.position.z)
-            node.normal.set(wasm_node.normal.x, wasm_node.normal.y, wasm_node.normal.z)
-
-            let force = this.graph_sim.force(node.id)
-            node.force.set(force.x, force.y, force.z)
-
-            let knitPath = this.graph_wasm.knitPath(node.id)
-
-            let knitPathArr = new Array(knitPath.size()).fill(0).map((_, id) => {
-                let vec = knitPath.get(id)
-                return new THREE.Vector3(vec.x, vec.y, vec.z)
-            })
-            if (node.mesh) {
-                node.curve.points = knitPathArr
-                // node.yarn_geometry.dispose()
-                // node.yarn_geometry = new THREE.TubeGeometry(node.curve, knitPathArr.length * 8, node.yarnSpec.weight * this.cfg.yarn_thickness, 6, true)
-                // node.mesh.geometry = node.yarn_geometry
-            }
-            if (node.node_sphere_mesh) {
-                node.node_sphere_mesh.position.set(node.position.x, node.position.y, node.position.z)
-                node.node_sphere_mesh.updateMatrix()
-            }
-            if (node.normal_helper) {
-                node.normal_helper.position.set(node.position.x, node.position.y, node.position.z)
-                node.normal_helper.setDirection(node.normal)
-                node.normal_helper.updateMatrix()
-            }
-            if (node.force_helper) {
-                node.force_helper.position.set(node.position.x, node.position.y, node.position.z)
-                node.force_helper.setDirection(node.force)
-                node.force_helper.updateMatrix()
-            }
-            let outgoing = this.outgoing(node)
-            for (let i = 0; i < node.outgoing_helpers.length; i++) {
-                let helper = node.outgoing_helpers[i]
-                let edge = outgoing[i]
-                let to = this.nodes[edge.to]
-                let dir = to.position.clone().sub(node.position)
-                helper.setDirection(dir.clone().normalize())
-                helper.setLength(dir.length())
-                helper.position.set(node.position.x, node.position.y, node.position.z)
-                helper.updateMatrix()
-            }
-        }
-    }
-    initGraphWASM(cfg: GraphConfig) {
-        this.cfg = cfg
-        let node_vec = new KnitSimModule.NodeVector()
-        let edge_vec = new KnitSimModule.EdgeVector()
-        for (let key in this.nodes) {
-            let node = this.nodes[key]
-            let node_wasm = {
-                id: node.id,
-                line_number: node.line_number,
-                row_number: node.row_number,
-                col_number: node.col_number,
-                start_of_row: node.start_of_row,
-                previous_node_id: node.previous_node?.id || -1,
-                type: KnitSimModule.KnitNodeTypeC[`KnitNodeTypeC_${node.type.toUpperCase()}`],
-                mode: KnitSimModule.KnitModeC.KnitModeC_FLAT,
-                side: KnitSimModule.KnitSideC[`KnitSideC_${node.side}`],
-                position: new KnitSimModule.Vector3f(node.position.x, node.position.y, node.position.z),
-                normal: node.normal ? new KnitSimModule.Vector3f(node.normal.x, node.normal.y, node.normal.z) : new KnitSimModule.Vector3f(0, 0, 0),
-                next_dir: new KnitSimModule.Vector3f(0, 0, 0)
-            }
-            // console.log("Node wasm", node_wasm)
-            node_vec.push_back(node_wasm)
-        }
-
-        for (let edge of this.edges) {
-            edge_vec.push_back({
-                from: edge.from,
-                to: edge.to,
-                direction: KnitSimModule.KnitEdgeDirectionC[`KnitEdgeDirectionC_${edge.direction}`],
-                id: edge_vec.size()
-            })
-        }
-        let graph = new KnitSimModule.KnitGraphC(cfg, node_vec, edge_vec)
-        this.graph_wasm = graph
-        this.graph_sim = new KnitSimModule.KnitSim(graph, {
-            f_expansion_factor: 0.3,
-            f_flattening_factor: 0.4,
-            f_repel_factor: 0.01,
-            offset_scaler: 0.7
-        })
-        return graph
-    }
-    computeHeuristics() {
-        let time = Date.now()
-        this.graph_wasm.computeHeuristicLayout()
-        this.graph_wasm.calculateNormals()
-        this.graph_wasm.computeKnitPaths()
-        this.syncGraphWASM()
-        console.log("Computed heuristics in", Date.now() - time)
-    }
-}
-
-
-
 export class PatternViz3D {
     width = 1000
     height = 500
@@ -400,9 +211,13 @@ export class PatternViz3D {
 
     }
     render() {
+        
         for (const node_id in this.graph.nodes) {
             const node = this.graph.nodes[node_id]
             node.preRender(this)
+        }
+        for (const listener of this.eventListeners.render) {
+            listener(this.highlighted_node)
         }
         if (this.highlighted_node && this.changed_highlighted_node) {
             let node_c = this.graph.graph_wasm.getNode(this.highlighted_node.id)
@@ -477,6 +292,10 @@ export class PatternViz3D {
     highlightNode(node: KnitNode3D) {
         if (node.id != this.highlighted_node?.id) {
             this.changed_highlighted_node = true
+
+            for (const listener of this.eventListeners.mouseout) {
+                listener(node)
+            }
         }
         if (this.highlighted_node) {
             this.highlighted_node.node_sphere_mesh.material = this.pool.sphere_material[this.highlighted_node.side]
@@ -514,11 +333,40 @@ export class PatternViz3D {
             }
             const id = parseInt(intersect.object.name)
             const node = this.graph.nodes[id]
+
             this.highlightNode(node)
+            for (const listener of this.eventListeners.mouseover) {
+                listener(node)
+            }
         }
 
     }
     updateClickedNode(event: MouseEvent) {
         this.onPointerMove(event);
+    }
+    eventListeners: Record<PatternViz3DEvents, ((node: KnitNode3D) => void)[]> = Object.keys(PatternViz3DEvents).map((event) => {
+        return {
+            [event]: []
+        }
+    }).reduce((acc, curr) => {
+        return { ...acc, ...curr }
+    }, {}) as Record<PatternViz3DEvents, ((node: KnitNode3D) => void)[]>
+    on(event: PatternViz3DEvents, callback: (node: KnitNode3D) => void) {
+        switch (event) {
+            case PatternViz3DEvents.click:
+                this.eventListeners.click.push(callback)
+                break
+            case PatternViz3DEvents.mouseover:
+                this.eventListeners.mouseover.push(callback)
+                break
+            case PatternViz3DEvents.mouseout:
+                this.eventListeners.mouseout.push(callback)
+                break
+            case PatternViz3DEvents.render:
+                this.eventListeners.render.push(callback)
+                break
+            default:
+                throw new Error(`Event ${event} not supported`)
+        }
     }
 }
