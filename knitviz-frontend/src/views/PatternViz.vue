@@ -2,16 +2,18 @@
     <main>
         <div class="pattern_viz">
             <div class="code_editor">
-                <div>
-                    <button @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k
-                    }}</button>
+                <h2> Code Editor </h2>
+                <div class="code_editor_header">
+                    <div>Prefill: </div>
+                    <Btn @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k
+                        }}</Btn>
                 </div>
                 <Code>
                 </Code>
-                <button @click="runCode">Run</button>
-                <div>
-                    <button @click="startSim" v-if="!state.simulation.running">Simulate</button>
-                    <button @click="stopSim" v-if="state.simulation.running">Stop</button>
+                <div class="code_editor_header">
+                    <Btn @click="runCode">Run</Btn>
+                    <Btn @click="startSim" v-if="!state.simulation.running">Simulate</Btn>
+                    <Btn @click="stopSim" v-if="state.simulation.running">Stop</Btn>
                     <span>Step: {{ state.simulation.step }} / Delta: {{ state.simulation.acc_delta }}</span>
                 </div>
 
@@ -33,6 +35,7 @@ import { onUnmounted, reactive, ref, toRaw, watch } from 'vue';
 import { useEditorStore } from '@/stores/editor';
 import { KnitGraphOverlayManager } from '@/knitgraph/3d/overlay';
 import type { EditorView } from 'codemirror';
+import Btn from '@/components/ui/Btn.vue';
 
 const store = useEditorStore();
 
@@ -47,54 +50,131 @@ const state = reactive({
         acc_delta: 0.0,
     },
     examples: {
-        simple_flat: `
-    this.cast_on(24)
-    const knit_row=()=>{
-        for (let i = 0; i < 6; i++) {
-            this.knit(2, 'purl')
-            this.knit(2, 'knit')
-        }
-        this.end_row()
-    }
+        'Simple Flat': `this.cast_on(24)
+const knit_row=(switched)=>{
     for (let i = 0; i < 6; i++) {
-        knit_row()
-    }
-    for(let i = 0; i < 6; i++){
-        this.knit(24, 'purl')
-        this.end_row()
-        this.knit(24, 'knit')
-        this.end_row()
-    }
-    for(let i = 0; i < 6; i++){
-        this.knit(24, 'knit')
-        this.end_row()
-        this.knit(24, 'knit')
-        this.end_row()
-    }`,
-        simple_circular: `
-    this.cast_on(24, 'round')
-    const knit_row=()=>{
-        for (let i = 0; i < 6; i++) {
+        if (switched) {
+            this.color(0xbcba45)
             this.knit(2, 'purl')
+            this.color('blue')
             this.knit(2, 'knit')
+        } else {
+            this.color(0xbcba45)
+            this.knit(2, 'knit')
+            this.color('blue')
+            this.knit(2, 'purl')
         }
-        this.end_row()
     }
+    this.end_row()
+}
+for (let i = 0; i < 6; i++) {
+    knit_row(false)
+}
+for (let i = 0; i < 6; i++) {
+    knit_row(i%2 === 0)
+}
+for(let i = 0; i < 6; i++){
+
+    for(let j = 0; j < 4; j++) {
+        if(j%2 === 0){
+            this.color(0xffb000)
+        } else {
+            this.color(0xdc267f)
+        }
+        this.knit(6, 'knit')
+    }
+    this.end_row()
+    for(let j = 0; j < 4; j++) {
+        if(j%2 === 0){
+            this.color(0xffb000)
+        } else {
+            this.color(0xdc267f)
+        }
+        this.knit(6, 'purl')
+    }
+    this.end_row()
+}
+for(let i = 0; i < 6; i++){
+    this.knit(24, 'knit')
+    this.end_row()
+    this.knit(24, 'knit')
+    this.end_row()
+}`,
+        'Simple Circular': `this.cast_on(24, 'round')
+const knit_row=(switched)=>{
     for (let i = 0; i < 6; i++) {
-        knit_row()
+        if (switched) {
+            this.color(0xbcba45)
+            this.knit(2, 'purl')
+            this.color('blue')
+            this.knit(2, 'knit')
+        } else {
+            this.color(0xbcba45)
+            this.knit(2, 'knit')
+            this.color('blue')
+            this.knit(2, 'purl')
+        }
     }
-    for(let i = 0; i < 6; i++){
-        this.knit(24, 'purl')
-        this.end_row()
-        this.knit(24, 'knit')
-        this.end_row()
-    }
-    for(let i = 0; i < 6; i++){
-        this.knit(24, 'knit')
-        this.end_row()
-        this.knit(24, 'knit')
-        this.end_row()
-    }`,
+    this.end_row()
+}
+for (let i = 0; i < 6; i++) {
+    knit_row(false)
+}
+for (let i = 0; i < 6; i++) {
+    knit_row(i%2 === 0)
+}
+for(let i = 0; i < 6; i++){
+    this.color(0xbcba45)
+    this.knit(24, 'purl')
+    this.end_row()
+    this.color('blue')
+    this.knit(24, 'knit')
+    this.end_row()
+}
+for(let i = 0; i < 6; i++){
+    this.knit(24, 'knit')
+    this.end_row()
+    this.knit(24, 'knit')
+    this.end_row()
+}`,
+'Beanie': `this.cast_on(24, 'round')
+let knits = 24
+for (let i = 0; i < 12; i++) {
+    this.color(0xbcba45)
+    this.knit(knits, 'knit')
+    knits -= 2
+    this.end_row()
+    this.color('blue')
+    this.knit(knits, 'purl')
+    knits -= 2
+    this.end_row()
+}`,
+'Beanie Complex': `
+let knits = 48
+this.cast_on(knits, 'round')
+for (let i = 0; i < 6; i++) {
+    this.color(0xbcba45)
+    this.knit(knits/4-1, 'knit')
+    this.knit(1, 'knit', 'yarn_over')
+    this.knit(knits/4-1, 'knit')
+    this.knit(1, 'knit', 'yarn_over')
+    this.knit(knits/4-1, 'knit')
+    this.knit(1, 'knit', 'yarn_over')
+    this.knit(knits/4, 'knit')
+    knits -= 4
+    this.end_row()
+    this.color('blue')
+    this.knit(knits/4-1, 'purl')
+    this.knit(1, 'purl', 'yarn_over')
+    this.knit(knits/4-1, 'purl')
+    this.knit(1, 'purl', 'yarn_over')
+    this.knit(knits/4-1, 'purl')
+    this.knit(1, 'purl', 'yarn_over')
+    this.knit(knits/4, 'purl')
+    knits -= 4
+    this.end_row()
+}
+`
     },
     code: ref(''),
     viz: null as PatternViz3D | null,
@@ -107,12 +187,28 @@ onUnmounted(() => {
     }
 })
 watch(() => state.code, (newCode) => {
+
+    
+    reset()
     store.setCode(newCode)
 })
-const runCode = () => {
+const reset = () => {
+    state.simulation.running = false
+    state.simulation.step = 0
+    state.simulation.acc_delta = 0.0
+    if (state.simulation.timeout) {
+        clearInterval(state.simulation.timeout)
+        state.simulation.timeout = null
+    }
+
     if (state.viz) {
+        state.viz.dispose()
+        state.overlay_manager.dispose()
         // state.viz.destroy()
     }
+}
+const runCode = () => {
+    reset()
     state.graph = new KnitGraph()
     state.graph.execute(store.code)
     console.log('Ran code:', state.graph)
@@ -189,5 +285,14 @@ const stopSim = () => {
 .threed_graph {
     height: 100%;
     width: 100%;
+}
+.code_editor_header {
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 1rem;
+    gap: 1rem;
 }
 </style>

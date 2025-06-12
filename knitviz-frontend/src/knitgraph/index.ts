@@ -24,9 +24,9 @@ export enum KnitSide {
     WRONG = 'WRONG',
 }
 export class YarnSpec {
-    color: number;
+    color: number | string;
     weight: number;
-    constructor(color: number, weight: number) {
+    constructor(color: number | string, weight: number) {
         this.color = color;
         this.weight = weight;
     }
@@ -70,6 +70,7 @@ export class KnittingState {
     last_start_node?: KnitNode;
     row_number: number = 0;
     col_number: number = 0;
+    current_yarn = new YarnSpec(0x0011ff, 1);
     private offset = 3
     constructor(graph: KnitGraph) {
         this.graph = graph;
@@ -103,11 +104,15 @@ export class KnittingState {
         this.offset--;
         this.end_row();
     }
-    knit(n: number, type: KnitNodeType, procedal: KnitNodeType = KnitNodeType.KNIT, yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1)) {
+    color(color: number | string, weight: number = 1) {
+        this.current_yarn = new YarnSpec(color, weight);
+    }
+    knit(n: number, type: KnitNodeType, procedal: KnitNodeType = KnitNodeType.KNIT) {
         type = (type as string).toUpperCase() as KnitNodeType;
+        procedal = (procedal as string).toUpperCase() as KnitNodeType;
         for (let i = 0; i < n; i++) {
 
-            let node = new KnitNode(type, yarnSpec, false, this.side);
+            let node = new KnitNode(type, this.current_yarn, false, this.side);
             node.line_number = this.call_position();
             node.row_number = this.row_number;
             node.col_number = this.col_number;
@@ -137,10 +142,12 @@ export class KnittingState {
                 }
                 let traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }, { dir: KnitEdgeDirection.ROW, in: backdir }];
                 if (procedal == KnitNodeType.SLIP) {
-                    traversal = [{ dir: KnitEdgeDirection.ROW, in: true }]
+                    console.log('slip stitch', node, this.previous_node);
+                    traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }]
                 }
                 if (procedal == KnitNodeType.YARN_OVER) {
-                    traversal = [{ dir: KnitEdgeDirection.ROW, in: true }, { dir: KnitEdgeDirection.ROW, in: true }, { dir: KnitEdgeDirection.ROW, in: true }]
+                    console.log('yarn over', node, this.previous_node);
+                    traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }, { dir: KnitEdgeDirection.ROW, in: backdir }, { dir: KnitEdgeDirection.ROW, in: backdir }]
                 }
                 let top_node_traversal = this.graph.traverseGraph(this.previous_node, traversal);
                 // console.log('traversal result', top_node_traversal, "all edges", this.graph.edges);

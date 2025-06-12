@@ -142,4 +142,14 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
         this.syncGraphWASM()
         console.log("Computed heuristics in", Date.now() - time)
     }
+    dispose() {
+        if (this.graph_wasm) {
+            this.graph_wasm.delete()
+            this.graph_wasm = null
+        }
+        if (this.graph_sim) {
+            this.graph_sim.delete()
+            this.graph_sim = null
+        }
+    }
 }

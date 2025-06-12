@@ -48,6 +48,14 @@ export class KnitGraphOverlayManager {
             this.overlays[key].update()
         }
     }
+    dispose() {
+        for (let key in this.overlays) {
+            this.overlays[key].overlay.remove()
+            this.overlays[key].link.remove()
+        }
+        this.svg.remove()
+        this.overlays = {}
+    }
 
 }
 export class KnitGraphOverlay {
@@ -76,14 +84,20 @@ export class KnitGraphOverlay {
             this.link.attr("visibility", "hidden")
             return
         }
-        this.overlay.attr("visibility", "visible")
-        this.link.attr("visibility", "visible")
         let x = bounds.x + (vector.x * 0.5 + 0.5) * bounds.width;
         let y = bounds.y + (vector.y * -0.5 + 0.5) * bounds.height;
 
         let from = { x: x, y: y }
         let coords_line = this.manager.editor.state.doc.line(this.n.line_number - 2)
         let line = this.manager.editor.coordsAtPos(coords_line.to)
+        if (!line) {
+            this.overlay.attr("visibility", "hidden")
+            this.link.attr("visibility", "hidden")
+            console.log("No line found for", this.n.line_number)
+            return
+        }
+        this.overlay.attr("visibility", "visible")
+        this.link.attr("visibility", "visible")
         let to = { x: line.left, y: line.top }
         // console.log("From", from, "To", to, coords_line, "L", this.n.line_number)
 

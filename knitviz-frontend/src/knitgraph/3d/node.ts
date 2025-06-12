@@ -40,10 +40,10 @@ export class KnitNode3D extends KnitNode {
         }
         if (viz.changed_highlighted_node) {
             this.node_sphere_mesh.material = viz.pool.sphere_material[this.side]
-            if (this.row_number_text) {
-                viz.three_div.removeChild(this.row_number_text)
-                this.row_number_text = null
-            }
+            // if (this.row_number_text) {
+            //     viz.three_div.removeChild(this.row_number_text)
+            //     this.row_number_text = null
+            // }
         }
         if (this.row_number_text) {
             let bounds = viz.renderer.domElement.getBoundingClientRect()

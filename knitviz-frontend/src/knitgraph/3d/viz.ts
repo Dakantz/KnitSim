@@ -177,7 +177,7 @@ export class PatternViz3D {
         this.scene.position.x = 0;
         // this.scene.position.y = -this.dimensions.height / 2;
         this.scene.position.z = 0;
-        this.scene.background = new THREE.Color(0xc1ffdb);
+        this.scene.background = new THREE.Color(0xe8fff9);
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
         this.gui = new GUI()
@@ -211,7 +211,7 @@ export class PatternViz3D {
 
     }
     render() {
-        
+
         for (const node_id in this.graph.nodes) {
             const node = this.graph.nodes[node_id]
             node.preRender(this)
@@ -219,15 +219,16 @@ export class PatternViz3D {
         for (const listener of this.eventListeners.render) {
             listener(this.highlighted_node)
         }
-        if (this.highlighted_node && this.changed_highlighted_node) {
+        let row_nodes = []
+        let positions: Record<number, THREE.Vector2Like> = {}
+        if (this.highlighted_node) {
             let node_c = this.graph.graph_wasm.getNode(this.highlighted_node.id)
             let row = this.graph.graph_wasm.row(node_c)
-            let row_nodes = new Array(row.nodes.size()).fill(0).map((_, idx) => {
+            row_nodes = new Array(row.nodes.size()).fill(0).map((_, idx) => {
                 let n = row.nodes.get(idx)
                 return this.graph.nodes[n.id]
             })
             row.delete()
-            let positions: Record<number, THREE.Vector2Like> = {}
             let bounds = this.renderer.domElement.getBoundingClientRect()
             for (let i = 0; i < row_nodes.length; i++) {
                 let node = row_nodes[i]
@@ -240,33 +241,6 @@ export class PatternViz3D {
                     y: y
                 }
             }
-            let overlay_texts = d3.select(this.three_div).selectAll(".overlay-text").data(row_nodes).join("div")
-                .attr("class", "overlay-text")
-                .style("position", "absolute")
-                .style("color", "darkred")
-                .style("pointer-events", "none")
-                .style("font-size", "15px")
-                .style("z-index", "1000")
-                .style("left", (d) => {
-                    let pos = positions[d.id]
-                    if (pos) {
-                        return `${pos.x}px`
-                    }
-                    return "0px"
-                })
-                .style("top", (d) => {
-                    let pos = positions[d.id]
-                    if (pos) {
-                        return `${pos.y}px`
-                    }
-                    return "0px"
-                })
-                .html((d) => {
-                    return `R${d.row_number}<br>C${d.col_number}`
-                }).each((d, i, g) => {
-                    d.row_number_text = g[i] as HTMLElement
-                })
-
 
             // let neighbours = this.graph.graph_wasm.edgesOf(node_c)
             // for (let i = 0; i < neighbours.size(); i++) {
@@ -284,6 +258,34 @@ export class PatternViz3D {
 
             // }
         }
+
+        d3.select(this.three_div).selectAll(".overlay-text").data(row_nodes).join("div")
+            .attr("class", "overlay-text")
+            .style("position", "absolute")
+            .style("color", "darkred")
+            .style("pointer-events", "none")
+            .style("font-size", "15px")
+            .style("z-index", "1000")
+            .style("left", (d) => {
+                let pos = positions[d.id]
+                if (pos) {
+                    return `${pos.x}px`
+                }
+                return "0px"
+            })
+            .style("top", (d) => {
+                let pos = positions[d.id]
+                if (pos) {
+                    return `${pos.y}px`
+                }
+                return "0px"
+            })
+            .html((d) => {
+                return `R${d.row_number}<br>C${d.col_number}`
+            }).each((d, i, g) => {
+                d.row_number_text = g[i] as HTMLElement
+            })
+
         this.changed_highlighted_node = false
         // KnitSimModule.doLeakCheck()
         this.renderer.render(this.scene, this.camera);
@@ -368,5 +370,14 @@ export class PatternViz3D {
             default:
                 throw new Error(`Event ${event} not supported`)
         }
+    }
+    dispose() {
+        this.three_div.removeEventListener("mousemove", (event) => this.onPointerMove(event));
+        this.three_div.removeEventListener("click", (event) => this.updateClickedNode(event));
+        this.three_div.remove()
+        this.scene.clear()
+        this.gui.destroy()
+        this.graph.dispose()
+
     }
 }
