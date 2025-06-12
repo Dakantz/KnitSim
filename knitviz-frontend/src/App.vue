@@ -6,7 +6,7 @@ import { RouterLink, RouterView } from 'vue-router'
   <v-app>
     <header>
 
-      <h1 class="heading">KnitViz</h1>
+      <h1 class="heading">KnitSim</h1>
       <div class="wrapper">
         <nav>
           <RouterLink to="/">Home</RouterLink>

@@ -21,7 +21,6 @@ RUN cp -r dist/knitsim-lib*.js src/knitgraph/sim
 
 COPY src ./src
 COPY index.html ./
-COPY public ./public
 COPY nginx ./nginx
 COPY vite.config.ts ./
 COPY tsconfig*.json ./
