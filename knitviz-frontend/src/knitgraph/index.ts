@@ -47,7 +47,7 @@ export class KnitNode {
     yarnSpec: YarnSpec = new YarnSpec(0x0011ff, 1),
     start_row: boolean = false,
     side: KnitSide = KnitSide.RIGHT,
-    id: number = null,
+    id: number = null
   ) {
     this.yarnSpec = yarnSpec;
     this.type = type;
@@ -64,7 +64,7 @@ export class KnitEdge {
     from: number,
     to: number,
     direction: KnitEdgeDirection = KnitEdgeDirection.ROW,
-    side: KnitSide = KnitSide.RIGHT,
+    side: KnitSide = KnitSide.RIGHT
   ) {
     this.from = from;
     this.direction = direction;
@@ -89,7 +89,7 @@ export class KnittingState {
   private call_position(): number {
     let stack = new Error().stack?.split("\n");
     let error_line = stack ? stack[this.offset] : undefined;
-    let line = error_line?.match(/:(\d+):\d+\)$/)[1];
+    let line = error_line?.match(navigator.userAgent.indexOf("Chrome") !== -1 ? /:(\d+):\d+\)$/ : /:(\d+):(\d+)$/)[1];
     return parseInt(line as string);
   }
   do_round_knit() {
@@ -244,7 +244,7 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
     if (direction) {
       // console.log('filtering nodes (out)', nodes, direction);
       nodes = nodes.filter((n) =>
-        this.edges.find((e) => e.to == n.id && e.from == node.id && e.direction == direction),
+        this.edges.find((e) => e.to == n.id && e.from == node.id && e.direction == direction)
       );
     }
     nodes.sort((a, b) => a.id - b.id);
@@ -256,7 +256,7 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
     if (direction) {
       // console.log('filtering nodes (in)', nodes, direction);
       nodes = nodes.filter((n) =>
-        this.edges.find((e) => e.from == n.id && e.to == node.id && e.direction == direction),
+        this.edges.find((e) => e.from == n.id && e.to == node.id && e.direction == direction)
       );
     }
     nodes.sort((a, b) => a.id - b.id);
@@ -300,14 +300,14 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
     while (current_node) {
       //check downward facing edges too as round knitting just goes around and links back to the start using this way
       let col_edge = this.edges.find(
-        (edges) => edges.direction == KnitEdgeDirection.COLUMN && edges.to == current_node.id,
+        (edges) => edges.direction == KnitEdgeDirection.COLUMN && edges.to == current_node.id
       );
       if (col_edge && col_edge.from == node.id) {
         closed = true;
         break;
       }
       let next_edge = this.edges.find(
-        (edges) => edges.direction == KnitEdgeDirection.ROW && edges.from == current_node.id,
+        (edges) => edges.direction == KnitEdgeDirection.ROW && edges.from == current_node.id
       );
       if (next_edge) {
         if (next_edge.to == node.id) {
@@ -334,7 +334,7 @@ export class KnitGraph<N extends KnitNode = KnitNode, E extends KnitEdge = KnitE
         return current_node;
       }
       let next_edge = this.edges.find(
-        (edges) => edges.direction == KnitEdgeDirection.ROW && edges.to == current_node.id,
+        (edges) => edges.direction == KnitEdgeDirection.ROW && edges.to == current_node.id
       );
       if (next_edge && next_edge.from != node.id) {
         current_node = this.nodes[next_edge.from];
