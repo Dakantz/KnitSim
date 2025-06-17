@@ -13,7 +13,6 @@ if(LINUX)
     include_directories(/opt/homebrew/include)
   else()
     message(">>> Linux Linux detected")
-    include_directories(/usr/share/emscripten/system/include)
   endif()
 endif()
 
