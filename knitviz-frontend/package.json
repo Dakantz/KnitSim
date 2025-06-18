@@ -36,5 +36,8 @@
     "vite": "^6.0.5",
     "vite-plugin-vue-devtools": "^7.6.8",
     "vue-tsc": "^2.1.10"
+  },
+  "prettier": {
+    "printWidth": 120
   }
 }

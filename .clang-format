@@ -1,0 +1,5 @@
+AccessModifierOffset: -1
+AlignConsecutiveMacros: false
+ColumnLimit: 120
+NamespaceIndentation: All
+AlignAfterOpenBracket: BlockIndent

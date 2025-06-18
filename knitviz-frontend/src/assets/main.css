@@ -1,4 +1,4 @@
-@import './base.css';
+@import "./base.css";
 
 #app {
   /* max-width: 1280px; */
@@ -20,8 +20,6 @@ a,
     background-color: hsla(160, 100%, 37%, 0.2);
   }
 }
-
-
 
 nav {
   width: 100%;
@@ -49,4 +47,3 @@ nav a {
 nav a:first-of-type {
   border: 0;
 }
-

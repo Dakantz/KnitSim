@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView } from "vue-router";
 </script>
 
 <template>
   <v-app>
     <header>
-
       <h1 class="heading">KnitSim</h1>
       <div class="wrapper">
         <nav>
@@ -22,13 +21,12 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <style>
 body {
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   margin: 0px;
 }
-text{
-  font-family: 'Roboto Mono', monospace;
+text {
+  font-family: "Roboto Mono", monospace;
 }
-
 
 header {
   line-height: 1.5;
@@ -69,6 +67,5 @@ nav {
 
   padding: 1rem 0;
   margin-top: 1rem;
-
 }
 </style>

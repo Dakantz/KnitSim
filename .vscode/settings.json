@@ -65,5 +65,5 @@
     "forward_list": "cpp",
     "set": "cpp"
   },
-  "cmake.sourceDirectory": "/Users/benedikt/projects/knitviz/knitviz-frontend"
+  "cmake.sourceDirectory": "./knitviz-frontend"
 }

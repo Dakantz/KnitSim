@@ -6,21 +6,20 @@ set(BUILD_TYPE "library")
 project(knitsim-lib VERSION 0.0.1 DESCRIPTION "Knittin Simulation C++ library demo that compiles to WebAssembly")
 set(CMAKE_CXX_FLAGS_DEBUG "-DLIB_LOG -DDEBUG")
 
-if(LINUX AND APPLE)
+if(LINUX)
+  if (APPLE)
     message(">>> MacOS detected")
     list(APPEND CMAKE_MODULE_PATH "$/cmake")
     include_directories(/opt/homebrew/include)
+  else()
+    message(">>> Linux Linux detected")
+  endif()
 endif()
 
- 
-
 foreach(dir ${CMAKE_PREFIX_PATH})
-    message(${dir})
+  message(${dir})
 endforeach()
 
-find_package (Eigen3 3.4 REQUIRED CONFIG HINTS /opt/homebrew/Cellar/eigen/3.4.0_1/share/eigen3/cmake/)
-
+find_package(Eigen3 3.4 REQUIRED CONFIG HINTS /opt/homebrew/Cellar/eigen/3.4.0_1/share/eigen3/cmake/)
 
 include(cmake/wasm.cmake)
-
-
