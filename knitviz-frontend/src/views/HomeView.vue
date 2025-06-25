@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import Btn from '@/components/ui/Btn.vue';
-
+import Btn from "@/components/ui/Btn.vue";
 </script>
 
 <template>
   <main>
-
-    <div >
+    <div>
       <!-- <h1>KnitViz</h1> -->
       <h2>Visualize your knitting patterns in 3D!</h2>
       <Btn @click="$router.push('/viz')" :btn_height="'3rem'">Start Visualizing</Btn>
@@ -33,5 +31,5 @@ main {
 h1 {
   font-size: 2.5rem;
   margin-bottom: 1rem;
-} 
+}
 </style>
