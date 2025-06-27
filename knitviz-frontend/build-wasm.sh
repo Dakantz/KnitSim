@@ -1,7 +1,7 @@
 #!/bin/bash
 # set -e
 
-export CPPFLAGS="-I/opt/homebrew/include"
+# export CPPFLAGS="-I/opt/homebrew/include"
 # export LDFLAGS="-L/opt/homebrew/lib \
 #   -fsanitize=address \
 #   -g2"
@@ -19,5 +19,5 @@ fi
 
 emcmake cmake . -B dist -DEigen3_DIR=$Eigen3_DIR
 emmake make -C ./dist/
-cp dist/knitsim-lib.js src/knitgraph/sim   
+cp dist/knitsim-lib.js src/knitgraph/sim
 cp dist/knitsim-lib.d.ts src/knitgraph/sim
