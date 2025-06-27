@@ -1,30 +1,23 @@
 <template>
-    <main>
-        <div class="pattern_viz">
-            <div class="code_editor">
-                <h2> Code Editor </h2>
-                <div class="code_editor_header">
-                    <div>Prefill: </div>
-                    <Btn @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k
-                        }}</Btn>
-                </div>
-                <Code>
-                </Code>
-                <div class="code_editor_header">
-                    <Btn @click="runCode">Run</Btn>
-                    <Btn @click="startSim" v-if="!state.simulation.running">Simulate</Btn>
-                    <Btn @click="stopSim" v-if="state.simulation.running">Stop</Btn>
-                    <span>Step: {{ state.simulation.step }} / Delta: {{ state.simulation.acc_delta }}</span>
-                </div>
-
-
-            </div>
-            <div id="pattern_viz_3d">
-            </div>
+  <main>
+    <div class="pattern_viz">
+      <div class="code_editor">
+        <h2>Code Editor</h2>
+        <Code> </Code>
+        <div class="code_editor_header">
+          <Btn @click="runCode">Run</Btn>
+          <Btn @click="startSim" v-if="!state.simulation.running">Simulate</Btn>
+          <Btn @click="stopSim" v-if="state.simulation.running">Stop</Btn>
+          <span>Step: {{ state.simulation.step }} / Delta: {{ state.simulation.acc_delta }}</span>
         </div>
-
-
-    </main>
+        <div class="code_editor_header">
+          <div>Prefill:</div>
+          <Btn @click="state.code = state.examples[k]" v-for="k in Object.keys(state.examples)">{{ k }}</Btn>
+        </div>
+      </div>
+      <div id="pattern_viz_3d"></div>
+    </div>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -73,26 +66,20 @@ for (let i = 0; i < 6; i++) {
 for (let i = 0; i < 6; i++) {
     knit_row(i%2 === 0)
 }
+const pattern=(stitch)=>{
+    for(let j = 0; j < 4; j++) {
+        if(j%2 === 0){
+            this.color(0xffb000)
+        }else{
+          this.color(0xdc267f);
+        } 
+        this.knit(6, stitch)
+    }
+    this.end_row()
+}
 for(let i = 0; i < 6; i++){
-
-    for(let j = 0; j < 4; j++) {
-        if(j%2 === 0){
-            this.color(0xffb000)
-        } else {
-            this.color(0xdc267f)
-        }
-        this.knit(6, 'knit')
-    }
-    this.end_row()
-    for(let j = 0; j < 4; j++) {
-        if(j%2 === 0){
-            this.color(0xffb000)
-        } else {
-            this.color(0xdc267f)
-        }
-        this.knit(6, 'purl')
-    }
-    this.end_row()
+    pattern('knit')
+    pattern('purl')
 }
 for(let i = 0; i < 6; i++){
     this.knit(24, 'knit')
@@ -117,12 +104,10 @@ const knit_row=(switched)=>{
     }
     this.end_row()
 }
-for (let i = 0; i < 6; i++) {
+for (let i = 0; i < 6; i++)
     knit_row(false)
-}
-for (let i = 0; i < 6; i++) {
+for (let i = 0; i < 6; i++)
     knit_row(i%2 === 0)
-}
 for(let i = 0; i < 6; i++){
     this.color(0xbcba45)
     this.knit(24, 'purl')
@@ -287,12 +272,13 @@ const stopSim = () => {
     width: 100%;
 }
 .code_editor_header {
-    display: flex;
-    flex-direction: row;
-    justify-content: start;
-    align-items: center;
-    width: 100%;
-    margin-bottom: 1rem;
-    gap: 1rem;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: start;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 1rem;
+  gap: 1rem;
 }
 </style>
