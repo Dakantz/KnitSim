@@ -1,16 +1,24 @@
 @import "./base.css";
 
 #app {
+  display: flex;
+  height: 100vh;
+}
+
+.app {
   /* max-width: 1280px; */
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  padding: 1rem;
   font-weight: normal;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 a,
 .green {
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
+  color: var(--color-text);
   transition: 0.4s;
   padding: 3px;
 }
@@ -31,7 +39,7 @@ nav {
 }
 
 nav a.router-link-exact-active {
-  color: var(--color-text);
+  color: hsla(160, 100%, 37%, 1);
 }
 
 nav a.router-link-exact-active:hover {

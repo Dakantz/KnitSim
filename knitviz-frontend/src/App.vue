@@ -3,18 +3,16 @@ import { RouterLink, RouterView } from "vue-router";
 </script>
 
 <template>
-  <v-app>
+  <v-app class="app">
     <header>
-      <h1 class="heading">KnitSim</h1>
+      <h1 class="heading" to="/">KnitSim</h1>
       <div class="wrapper">
         <nav>
           <RouterLink to="/">Home</RouterLink>
-          <RouterLink to="/viz">Vizualize Pattern</RouterLink>
-          <RouterLink to="/about">About</RouterLink>
+          <RouterLink to="/viz">Knitting</RouterLink>
         </nav>
       </div>
     </header>
-
     <RouterView />
   </v-app>
 </template>
@@ -29,6 +27,7 @@ text {
 }
 
 header {
+  display: flex;
   line-height: 1.5;
   max-height: 100vh;
 }
@@ -46,7 +45,7 @@ header {
 
 .header {
   display: flex;
-  place-items: center;
+  place-items: start;
   padding-right: calc(var(--section-gap) / 2);
 }
 
@@ -58,6 +57,7 @@ header .wrapper {
   display: flex;
   place-items: flex-start;
   flex-wrap: wrap;
+  padding-top: 1rem;
 }
 
 nav {
@@ -65,7 +65,7 @@ nav {
   margin-left: -1rem;
   font-size: 1rem;
 
-  padding: 1rem 0;
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
 }
 </style>

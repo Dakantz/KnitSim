@@ -386,6 +386,24 @@ export class PatternViz3D {
         throw new Error(`Event ${event} not supported`);
     }
   }
+  resize() {
+    if (!this.three_div || !this.renderer || !this.camera) {
+      return;
+    }
+
+    const nextWidth = this.three_div.clientWidth;
+    const nextHeight = this.three_div.clientHeight;
+    if (!nextWidth || !nextHeight) {
+      return;
+    }
+
+    this.width = nextWidth;
+    this.height = nextHeight;
+    this.camera.aspect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.width, this.height);
+    this.render();
+  }
   dispose() {
     this.three_div.removeEventListener("mousemove", (event) => this.onPointerMove(event));
     this.three_div.removeEventListener("click", (event) => this.updateClickedNode(event));

@@ -95,7 +95,7 @@ export class KnitGraphOverlay {
     if (!line) {
       this.overlay.attr("visibility", "hidden");
       this.link.attr("visibility", "hidden");
-      console.log("No line found for", this.n.line_number);
+      // console.log("No line found for", this.n.line_number);
       return;
     }
     this.overlay.attr("visibility", "visible");
