@@ -3,7 +3,7 @@ import { RouterLink, RouterView } from "vue-router";
 </script>
 
 <template>
-  <v-app class="app">
+  <div class="app">
     <header>
       <h1 class="heading" to="/">KnitSim</h1>
       <div class="wrapper">
@@ -13,8 +13,11 @@ import { RouterLink, RouterView } from "vue-router";
         </nav>
       </div>
     </header>
-    <RouterView />
-  </v-app>
+
+    <main class="app-container">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style>
@@ -67,5 +70,12 @@ nav {
 
   margin-top: 1.5rem;
   margin-bottom: 1rem;
+}
+
+.app-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

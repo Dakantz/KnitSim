@@ -3,16 +3,7 @@ import { graphToSnapshot, type GraphSnapshot } from "@/knitgraph/snapshot";
 import { KnitGraph } from "@/knitgraph";
 import type { EditorAdapter } from "@/components/editor/adapters/adapterInterface";
 
-type CodeFromStore = {
-  code: string;
-};
-
-type CodeToStore = {
-  code: string;
-  graph: GraphSnapshot;
-};
-
-export const codeAdapter: EditorAdapter<GlobalEditorState, CodeFromStore, string, CodeToStore> = {
+export const codeAdapter: EditorAdapter<GlobalEditorState, { code: string }, string, { code: string; graph: GraphSnapshot }> = {
   fromStore(state: GlobalEditorState) {
     return {
       code: state.editors.code.editorContent,

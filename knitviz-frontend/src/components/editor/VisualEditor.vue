@@ -3,67 +3,27 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as Blockly from "blockly";
 import Btn from "@/components/ui/Btn.vue";
 import type { GraphSnapshot } from "@/knitgraph/snapshot";
-import { useGlobalEditorStore, type VisualEditorState } from "@/stores/globalEditorStore";
+import { useGlobalEditorStore } from "@/stores/globalEditorStore";
+import {
+  ensureKnitBlocklyRegistered,
+  knitToolbox,
+  workspaceToKnitCode,
+} from "@/stores/samples/blocklysamples";
 import { visualAdapter } from "@/components/editor/adapters/visualAdapter";
-import { ensureKnitBlocklyRegistered, knitToolbox, workspaceToKnitCode } from "@/components/editor/visual-editor/knitBlocks";
+import type { VisualEditorState } from "@/components/editor/editor.types";
 
 const emit = defineEmits<{
   (e: "generate", payload: { graph: GraphSnapshot; visual: VisualEditorState }): void;
 }>();
 
 const store = useGlobalEditorStore();
+
 const blocklyDiv = ref<HTMLElement | null>(null);
 const blocklyContainer = ref<HTMLElement | null>(null);
 const workspace = ref<any>(null);
 const resizeObserver = ref<ResizeObserver | null>(null);
 
-const saveWorkspace = () => {
-  if (!workspace.value) {
-    return "";
-  }
-  const state = Blockly.serialization.workspaces.save(workspace.value);
-  return JSON.stringify(state);
-};
-
-const loadWorkspace = (workspaceJson: string) => {
-  if (!workspace.value || !workspaceJson) {
-    return;
-  }
-
-  try {
-    const state = JSON.parse(workspaceJson);
-    Blockly.serialization.workspaces.load(state, workspace.value);
-  } catch {
-    workspace.value.clear();
-  }
-};
-
-const resizeBlockly = () => {
-  if (workspace.value) {
-    Blockly.svgResize(workspace.value);
-  }
-};
-
-const generate = () => {
-  if (!workspace.value) {
-    return;
-  }
-
-  const code = workspaceToKnitCode(workspace.value);
-  emit(
-    "generate",
-    visualAdapter.toStore({
-      workspaceJson: saveWorkspace(),
-      code,
-    }),
-  );
-};
-
-const reset = () => {
-  if (workspace.value) {
-    workspace.value.clear();
-  }
-};
+const lastLoadedWorkspaceJson = ref("");
 
 onMounted(() => {
   ensureKnitBlocklyRegistered();
@@ -89,15 +49,79 @@ onMounted(() => {
   }
 });
 
+const loadWorkspace = (workspaceJson: string) => {
+  if (!workspace.value || !workspaceJson) {
+    return;
+  }
+
+  try {
+    const state = JSON.parse(workspaceJson);
+    Blockly.serialization.workspaces.load(state, workspace.value);
+    lastLoadedWorkspaceJson.value = workspaceJson;
+  } catch {
+    workspace.value.clear();
+    lastLoadedWorkspaceJson.value = "";
+  }
+};
+
+const saveWorkspace = () => {
+  if (!workspace.value) {
+    return "";
+  }
+  const state = Blockly.serialization.workspaces.save(workspace.value);
+  return JSON.stringify(state);
+};
+
+const resizeBlockly = () => {
+  if (workspace.value) {
+    Blockly.svgResize(workspace.value);
+  }
+};
+
+const generate = () => {
+  if (!workspace.value) {
+    return;
+  }
+
+  const workspaceJson = saveWorkspace();
+  lastLoadedWorkspaceJson.value = workspaceJson;
+  const code = workspaceToKnitCode(workspace.value);
+  emit(
+    "generate",
+    visualAdapter.toStore({
+      workspaceJson,
+      code,
+    }),
+  );
+};
+
+const reset = () => {
+  if (workspace.value) {
+    workspace.value.clear();
+  }
+};
+
 const stopRevisionWatch = watch(
   () => store.state.revision,
   () => {
     const { workspaceJson } = visualAdapter.fromStore(store.state);
-    if (workspaceJson && workspace.value) {
-      workspace.value.clear();
-      loadWorkspace(workspaceJson);
-      resizeBlockly();
+    if (!workspace.value) {
+      return;
     }
+
+    if (!workspaceJson) {
+      workspace.value.clear();
+      lastLoadedWorkspaceJson.value = "";
+      return;
+    }
+
+    if (workspaceJson === lastLoadedWorkspaceJson.value) {
+      return;
+    }
+
+    workspace.value.clear();
+    loadWorkspace(workspaceJson);
+    resizeBlockly();
   },
 );
 
@@ -128,41 +152,35 @@ defineExpose({
 </script>
 
 <template>
-  <section class="visual_editor">
+  <section class="visual-editor">
     <div class="toolbar">
-      <Btn btn_width="7rem" @click="reset">Reset</Btn>
-      <Btn btn_width="8rem" @click="generate">Generate</Btn>
+      <Btn btn_width="6.5rem" btn_height="2.6rem" @click="reset">Reset</Btn>
     </div>
 
-    <div ref="blocklyContainer" class="blockly_container">
-      <div ref="blocklyDiv" class="blockly_editor"></div>
+    <div ref="blocklyContainer" class="blockly-container">
+      <div ref="blocklyDiv" class="blockly-editor"></div>
     </div>
   </section>
 </template>
 
 <style scoped lang="scss">
-.visual_editor {
+.visual-editor {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.55rem;
   height: 100%;
   min-height: 0;
 }
 
-.toolbar {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.blockly_container {
+.blockly-container {
   border: 1px solid #b8b7b7;
   flex: 1;
-  min-height: 340px;
+  min-height: 300px;
   overflow: hidden;
+  border-radius: 0.4rem;
 }
 
-.blockly_editor {
+.blockly-editor {
   width: 100%;
   height: 100%;
 }

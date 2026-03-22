@@ -55,3 +55,17 @@ nav a {
 nav a:first-of-type {
   border: 0;
 }
+
+.toolbar {
+  display: flex;
+  align-items: end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.sample-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}

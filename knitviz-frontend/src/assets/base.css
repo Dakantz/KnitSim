@@ -19,6 +19,11 @@
   --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
   --vt-c-text-dark-1: var(--vt-c-white);
   --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
+
+  --font-size-xsmall: 0.75rem;
+  --font-size-small: 0.84rem;
+  --font-size-medium: 1rem;
+  --font-size-large: 1.25rem;
 }
 
 /* semantic color variables for this project */
@@ -32,22 +37,12 @@
 
   --color-heading: var(--vt-c-text-light-1);
   --color-text: var(--vt-c-text-light-1);
+  --color-text-muted: var(--vt-c-text-light-2);
 
   --section-gap: 160px;
-}
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
-
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
-  }
+  --border-container: 1px solid var(--color-border);
+  --border-container-radius: 0.4rem;
 }
 
 *,
@@ -79,7 +74,7 @@ body {
     "Droid Sans",
     "Helvetica Neue",
     sans-serif;
-  font-size: 15px;
+  font-size: var(--font-size-small);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

@@ -1,7 +1,8 @@
-import type { GlobalEditorState, VisualEditorState } from "@/stores/globalEditorStore";
+import type { GlobalEditorState } from "@/stores/globalEditorStore";
 import { graphToSnapshot, type GraphSnapshot } from "@/knitgraph/snapshot";
 import { KnitGraph } from "@/knitgraph";
 import type { EditorAdapter } from "@/components/editor/adapters/adapterInterface";
+import type { VisualEditorState } from "@/components/editor/editor.types";
 
 export type VisualAdapterInput = {
   workspaceJson: string;

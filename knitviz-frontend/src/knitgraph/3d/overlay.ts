@@ -79,6 +79,12 @@ export class KnitGraphOverlay {
   }
 
   update() {
+    if (!this.manager.editor || !this.manager.editor.state) {
+      this.overlay.attr("visibility", "hidden");
+      this.link.attr("visibility", "hidden");
+      return;
+    }
+
     let bounds = this.manager.viz.renderer.domElement.getBoundingClientRect();
     const vector = this.n.position.clone().project(this.manager.viz.camera);
     if (vector.x > 1 || vector.x < -1 || vector.y > 1 || vector.y < -1) {
@@ -90,7 +96,15 @@ export class KnitGraphOverlay {
     let y = bounds.y + (vector.y * -0.5 + 0.5) * bounds.height;
 
     let from = { x: x, y: y };
-    let coords_line = this.manager.editor.state.doc.line(this.n.line_number - 2);
+    const lineNumber = this.n.line_number - 2;
+    const maxLine = this.manager.editor.state.doc.lines;
+    if (lineNumber < 1 || lineNumber > maxLine) {
+      this.overlay.attr("visibility", "hidden");
+      this.link.attr("visibility", "hidden");
+      return;
+    }
+
+    let coords_line = this.manager.editor.state.doc.line(lineNumber);
     let line = this.manager.editor.coordsAtPos(coords_line.to);
     if (!line) {
       this.overlay.attr("visibility", "hidden");

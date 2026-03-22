@@ -35,7 +35,7 @@ export class KnitNode3D extends KnitNode {
     for (let helper of this.outgoing_helpers) {
       helper.visible = viz.show_edges;
     }
-    if (viz.changed_highlighted_node) {
+    if (viz.changed_highlighted_node && this.node_sphere_mesh) {
       this.node_sphere_mesh.material = viz.pool.sphere_material[this.side];
       // if (this.row_number_text) {
       //     viz.three_div.removeChild(this.row_number_text)

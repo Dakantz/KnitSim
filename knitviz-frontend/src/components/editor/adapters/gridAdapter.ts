@@ -1,19 +1,25 @@
-import type { GlobalEditorState, GridCellState, GridEditorState } from "@/stores/globalEditorStore";
+import type { GlobalEditorState } from "@/stores/globalEditorStore";
 import { graphToSnapshot, type GraphSnapshot } from "@/knitgraph/snapshot";
 import { KnitGraph, KnitNodeType } from "@/knitgraph";
 import type { EditorAdapter } from "@/components/editor/adapters/adapterInterface";
-
-const defaultRows = 12;
-const defaultCols = 24;
-const defaultType = "KNIT";
-const defaultColor = "#7ca9ff";
+import {
+  DEFAULT_GRID_COLS,
+  DEFAULT_GRID_COLOR,
+  DEFAULT_GRID_ROWS,
+  DEFAULT_GRID_STITCH_TYPE,
+  MIN_GRID_COLS,
+  MIN_GRID_ROWS,
+  MAX_GRID_COLS,
+  MAX_GRID_ROWS,
+} from "@/components/editor/editor.constants";
+import type { GridCellState, GridEditorState } from "@/components/editor/editor.types";
 
 const createCell = (row: number, col: number): GridCellState => ({
   id: `${row}-${col}`,
   row,
   col,
-  type: defaultType,
-  color: defaultColor,
+  type: DEFAULT_GRID_STITCH_TYPE,
+  color: DEFAULT_GRID_COLOR,
 });
 
 const createGrid = (rows: number, cols: number): GridCellState[][] =>
@@ -22,8 +28,8 @@ const createGrid = (rows: number, cols: number): GridCellState[][] =>
   );
 
 const toMatrix = (gridState: GridEditorState): GridCellState[][] => {
-  const rows = Math.max(4, Math.min(40, gridState.rows || defaultRows));
-  const cols = Math.max(4, Math.min(40, gridState.cols || defaultCols));
+  const rows = Math.max(MIN_GRID_ROWS, Math.min(MAX_GRID_ROWS, gridState.rows || DEFAULT_GRID_ROWS));
+  const cols = Math.max(MIN_GRID_COLS, Math.min(MAX_GRID_COLS, gridState.cols || DEFAULT_GRID_COLS));
   const matrix = createGrid(rows, cols);
 
   for (const cell of gridState.cells) {
@@ -68,8 +74,8 @@ export const gridAdapter: EditorAdapter<GlobalEditorState, { matrix: GridCellSta
     const gridState = state.editors.grid;
     const hasStoredCells = gridState.cells.length > 0;
     const fallback = toMatrix({
-      rows: defaultRows,
-      cols: defaultCols,
+      rows: DEFAULT_GRID_ROWS,
+      cols: DEFAULT_GRID_COLS,
       cells: [],
     });
 

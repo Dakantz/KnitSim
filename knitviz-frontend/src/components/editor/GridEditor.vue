@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, onMounted, onUnmounted, reactive, watch } from "vue";
 import Btn from "@/components/ui/Btn.vue";
-import { useGlobalEditorStore, type GridCellState } from "@/stores/globalEditorStore";
+import { useGlobalEditorStore } from "@/stores/globalEditorStore";
+import { useGridSamplesStore } from "@/stores/samples/gridsamples";
 import { gridAdapter } from "@/components/editor/adapters/gridAdapter";
 import type { GraphSnapshot } from "@/knitgraph/snapshot";
+import {
+	DEFAULT_GRID_COLS,
+	DEFAULT_GRID_COLOR,
+	DEFAULT_GRID_ROWS,
+	DEFAULT_GRID_STITCH_TYPE,
+	MIN_GRID_COLS,
+	MIN_GRID_ROWS,
+	MAX_GRID_COLS,
+	MAX_GRID_ROWS,
+} from "@/components/editor/editor.constants";
+import type { GridCellState } from "@/components/editor/editor.types";
 
 const emit = defineEmits<{
 	(e: "generate", payload: {
@@ -13,60 +25,93 @@ const emit = defineEmits<{
 }>();
 
 const store = useGlobalEditorStore();
-const state = reactive({
-	activeStitch: "KNIT",
-	activeColor: "#3366ff",
-	rows: 12,
-	cols: 24,
-	matrix: [] as GridCellState[][],
+const sampleStore = useGridSamplesStore();
+const gridState = reactive({
+	activeStitch: DEFAULT_GRID_STITCH_TYPE,
+	activeColor: DEFAULT_GRID_COLOR,
+	rows: DEFAULT_GRID_ROWS,
+	cols: DEFAULT_GRID_COLS,
+	isPainting: false,
+	cellMatrix: [] as GridCellState[][],
 });
 
 const stitchOptions = ["KNIT", "PURL", "YARN_OVER"];
+const sampleNames = sampleStore.names;
+const cellSize = 20;
+const cellGap = 2;
 
 const loadFromStore = () => {
 	const { matrix } = gridAdapter.fromStore(store.state);
-	state.matrix = matrix.map((row) => row.map((cell) => ({ ...cell })));
-	state.rows = state.matrix.length;
-	state.cols = state.matrix[0]?.length ?? 0;
+	gridState.cellMatrix = matrix.map((row) => row.map((cell) => ({ ...cell })));
+	gridState.rows = gridState.cellMatrix.length;
+	gridState.cols = gridState.cellMatrix[0]?.length ?? 0;
 };
 
 const ensureGridSize = (rows: number, cols: number) => {
-	const normalizedRows = Math.max(4, Math.min(40, rows));
-	const normalizedCols = Math.max(4, Math.min(40, cols));
+	const clampedRows = Math.max(MIN_GRID_ROWS, Math.min(MAX_GRID_ROWS, rows));
+	const clampedCols = Math.max(MIN_GRID_COLS, Math.min(MAX_GRID_COLS, cols));
 
-	if (state.rows !== normalizedRows) {
-		state.rows = normalizedRows;
+	if (gridState.rows !== clampedRows) {
+		gridState.rows = clampedRows;
 	}
-	if (state.cols !== normalizedCols) {
-		state.cols = normalizedCols;
+	if (gridState.cols !== clampedCols) {
+		gridState.cols = clampedCols;
 	}
 
-	const next = Array.from({ length: normalizedRows }, (_, row) =>
-		Array.from({ length: normalizedCols }, (_, col) => {
-			const existing = state.matrix[row]?.[col];
-			return existing
-				? { ...existing, id: `${row}-${col}`, row, col }
+	const next = Array.from({ length: clampedRows }, (_, row) =>
+		Array.from({ length: clampedCols }, (_, col) => {
+			const existingCell = gridState.cellMatrix[row]?.[col];
+			return existingCell
+				? { ...existingCell, id: `${row}-${col}`, row, col }
 				: {
 						id: `${row}-${col}`,
 						row,
 						col,
-						type: "KNIT",
-						color: "#7ca9ff",
+						type: DEFAULT_GRID_STITCH_TYPE,
+						color: DEFAULT_GRID_COLOR,
 					};
 		}),
 	);
 
-	state.matrix = next;
+	gridState.cellMatrix = next;
 };
 
-const paint = (row: number, col: number) => {
-	const cell = state.matrix[row]?.[col];
+const paintCell = (row: number, col: number) => {
+	const cell = gridState.cellMatrix[row]?.[col];
 	if (!cell) {
 		return;
 	}
 
-	cell.type = state.activeStitch;
-	cell.color = state.activeColor;
+	cell.type = gridState.activeStitch;
+	cell.color = gridState.activeColor;
+};
+
+const paintStart = (row: number, col: number) => {
+	gridState.isPainting = true;
+	paintCell(row, col);
+};
+
+const paintDrag = (row: number, col: number) => {
+	if (!gridState.isPainting) {
+		return;
+	}
+
+	paintCell(row, col);
+};
+
+const paintStop = () => {
+	gridState.isPainting = false;
+};
+
+const applySample = (name: string) => {
+	const matrix = sampleStore.buildMatrix(name);
+	if (!matrix) {
+		return;
+	}
+
+	gridState.cellMatrix = matrix;
+	gridState.rows = matrix.length;
+	gridState.cols = matrix[0]?.length ?? 0;
 };
 
 const reset = () => {
@@ -74,31 +119,42 @@ const reset = () => {
 };
 
 const fill = () => {
-	state.matrix.forEach((row) => {
+	gridState.cellMatrix.forEach((row) => {
 		row.forEach((cell) => {
-			cell.type = state.activeStitch;
-			cell.color = state.activeColor;
+			cell.type = gridState.activeStitch;
+			cell.color = gridState.activeColor;
 		});
 	});
 };
 
 const generate = () => {
-	const payload = gridAdapter.toStore(state.matrix);
+	const payload = gridAdapter.toStore(gridState.cellMatrix);
 	emit("generate", payload);
 };
 
-const totalCells = computed(() => state.rows * state.cols);
+const cellsTotal = computed(() => gridState.rows * gridState.cols);
+const cellsFlat = computed(() => gridState.cellMatrix.flat());
+const svgWidth = computed(() => gridState.cols * (cellSize + cellGap) + cellGap);
+const svgHeight = computed(() => gridState.rows * (cellSize + cellGap) + cellGap);
+
+const getShortType = (type: string) => {
+	if (type === "YARN_OVER") {
+		return "YO";
+	}
+
+	return type.slice(0, 1);
+};
 
 loadFromStore();
 
-watch(
-	() => [state.rows, state.cols],
+const stopGridSizeWatch = watch(
+	() => [gridState.rows, gridState.cols],
 	([rows, cols]) => {
 		ensureGridSize(rows, cols);
 	},
 );
 
-watch(
+const stopRevisionWatch = watch(
 	() => store.state.revision,
 	() => {
 		loadFromStore();
@@ -109,75 +165,108 @@ defineExpose({
 	generate,
 	reset,
 });
+
+onMounted(() => {
+	window.addEventListener("mouseup", paintStop);
+});
+
+onUnmounted(() => {
+	window.removeEventListener("mouseup", paintStop);
+
+	stopGridSizeWatch();
+	stopRevisionWatch();
+});
 </script>
 
 <template>
-	<section class="grid_editor">
+	<section class="grid-editor">
+		<div class="sample-bar" v-if="sampleNames.length > 0">
+			<span>Grid Samples</span>
+			<Btn btn_width="7.5rem" btn_height="2.6rem" v-for="name in sampleNames" :key="name" @click="applySample(name)">
+				{{ name }}
+			</Btn>
+		</div>
+
 		<div class="toolbar">
 			<label>
 				Rows
-				<input v-model.number="state.rows" type="number" min="4" max="40" />
+				<input v-model.number="gridState.rows" type="number" :min="MIN_GRID_ROWS" :max="MAX_GRID_ROWS" />
 			</label>
 			<label>
 				Cols
-				<input v-model.number="state.cols" type="number" min="4" max="40" />
+				<input v-model.number="gridState.cols" type="number" :min="MIN_GRID_COLS" :max="MAX_GRID_COLS" />
 			</label>
 			<label>
 				Stitch
-				<select v-model="state.activeStitch">
+				<select v-model="gridState.activeStitch">
 					<option v-for="option in stitchOptions" :key="option" :value="option">{{ option }}</option>
 				</select>
 			</label>
 			<label>
 				Color
-				<input v-model="state.activeColor" type="color" />
+				<input v-model="gridState.activeColor" type="color" />
 			</label>
-			<Btn btn_width="7rem" @click="fill">Fill</Btn>
-			<Btn btn_width="7rem" @click="reset">Reset</Btn>
-			<Btn btn_width="8rem" @click="generate">Generate</Btn>
-			<span class="summary">{{ totalCells }} cells</span>
+			<Btn btn_width="6.5rem" btn_height="2.6rem" @click="fill">Fill</Btn>
+			<Btn btn_width="6.5rem" btn_height="2.6rem" @click="reset">Reset</Btn>
+			<span class="summary">{{ cellsTotal }} cells</span>
 		</div>
 
-		<div class="grid_surface">
-			<div v-for="(row, rowIndex) in state.matrix" :key="rowIndex" class="grid_row">
-				<button
-					v-for="(cell, colIndex) in row"
+		<div class="grid-container">
+			<svg
+				class="grid-canvas"
+				:viewBox="`0 0 ${svgWidth} ${svgHeight}`"
+				:width="svgWidth"
+				:height="svgHeight"
+				@mouseleave="paintStop"
+			>
+				<g
+					v-for="cell in cellsFlat"
 					:key="cell.id"
-					class="grid_cell"
-					:title="`${cell.type} (${cell.row}, ${cell.col})`"
-					:style="{ backgroundColor: cell.color }"
-					@click="paint(rowIndex, colIndex)"
-				></button>
-			</div>
+					:transform="`translate(${cell.col * (cellSize + cellGap) + cellGap}, ${cell.row * (cellSize + cellGap) + cellGap})`"
+					@mousedown.prevent="paintStart(cell.row, cell.col)"
+					@mouseenter="paintDrag(cell.row, cell.col)"
+				>
+					<rect
+						class="grid-cell"
+						:width="cellSize"
+						:height="cellSize"
+						:fill="cell.color"
+						:aria-label="`${cell.type} (${cell.row}, ${cell.col})`"
+					/>
+					<text
+						:x="cellSize/2"
+						:y="cellSize/2"
+						class="grid-label"
+						dominant-baseline="middle"
+						text-anchor="middle"
+					>
+						{{ getShortType(cell.type) }}
+					</text>
+				</g>
+			</svg>
 		</div>
 	</section>
 </template>
 
 <style scoped lang="scss">
-.grid_editor {
+.grid-editor {
 	display: flex;
 	flex-direction: column;
-	gap: 0.75rem;
-}
-
-.toolbar {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: end;
-	gap: 0.75rem;
+	gap: 0.55rem;
+	height: 100%;
+	min-height: 0;
 }
 
 label {
 	display: flex;
 	flex-direction: column;
-	gap: 0.3rem;
-	font-size: 0.9rem;
+	gap: 0.2rem;
 }
 
 input,
 select {
-	border: 1px solid #b8b7b7;
-	padding: 0.35rem 0.5rem;
+	border: var(--border-container);
+	padding: 0.22rem 0.35rem;
 	background: white;
 }
 
@@ -185,25 +274,34 @@ select {
 	margin-left: auto;
 }
 
-.grid_surface {
-	border: 1px solid #b8b7b7;
+.grid-container {
+	border: var(--border-container);
+	border-radius: var(--border-container-radius);
+	background: #f9fcfb;
 	overflow: auto;
-	max-height: 56vh;
-	padding: 0.5rem;
+	height: 100%;
+	padding: 0.35rem;
 }
 
-.grid_row {
-	display: flex;
+.grid-canvas {
+	display: block;
 }
 
-.grid_cell {
-	height: 22px;
-	width: 22px;
-	border: 1px solid rgba(0, 0, 0, 0.08);
+.grid-cell {
 	cursor: pointer;
+	stroke: rgba(25, 52, 66, 0.2);
+	stroke-width: 1.2;
 }
 
-.grid_cell:hover {
-	outline: 1px solid #6e8799;
+.grid-cell:hover {
+	stroke: #2d6a88;
+}
+
+.grid-label {
+	font-size: 9px;
+	font-weight: 700;
+	fill: rgba(17, 31, 39, 0.75);
+	pointer-events: none;
+	user-select: none;
 }
 </style>

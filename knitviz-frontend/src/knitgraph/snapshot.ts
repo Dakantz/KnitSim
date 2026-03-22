@@ -72,6 +72,7 @@ export const snapshotToGraph = (snapshot: GraphSnapshot): KnitGraph => {
     knitNode.line_number = node.lineNumber;
     knitNode.row_number = node.rowNumber;
     knitNode.col_number = node.colNumber;
+
     graph.nodes[knitNode.id] = knitNode;
     previousByNodeId.set(node.id, node.previousNodeId);
   }

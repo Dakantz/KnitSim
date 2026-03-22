@@ -10,6 +10,8 @@ import KnitSimLib from "../sim/knitsim-lib";
 import { toRaw } from "vue";
 import { KnitGraph3D } from "./graph";
 import type { KnitNode3D } from "./node";
+import type { WorkerNodeState } from "../workerProtocol";
+import type { GraphNodeSnapshot } from "../snapshot";
 // 3D circle packing based upon https://observablehq.com/@analyzer2004/3d-circle-packing
 // expanded with Topic links and fixed height of nodes (TODO)
 export let KnitSimModule: MainModule = null;
@@ -67,11 +69,16 @@ export class PatternViz3D {
   show_edges = false;
   show_forces = true;
   show_nodes = true;
+  deferCompute = false;
+  private pointerMoveHandler = (event: MouseEvent) => this.onPointerMove(event);
+  private clickHandler = (event: MouseEvent) => this.updateClickedNode(event);
   constructor(
     public query_renderer: string,
     graph: KnitGraph,
+    options: { deferCompute?: boolean } = {},
   ) {
     this.graph = new KnitGraph3D(graph);
+    this.deferCompute = options.deferCompute ?? false;
     this.init();
   }
   stepSim(time: number) {
@@ -170,11 +177,205 @@ export class PatternViz3D {
       // console.log("Computed node", node, "with neighbours", sorted_neighbours, "and curve", curve, "and normal", normal)
     }
   }
+
+  // Aligned from "computeKnits" above
+  // This is highly experimental and just a test to update the Nodes with the webworker sim results
+  updateNodes(nodeStates: WorkerNodeState[]) {
+    const stateById = new Map(nodeStates.map((nodeState) => [nodeState.id, nodeState]));
+
+    for (const nodeId in this.graph.nodes) {
+      const node = this.graph.nodes[nodeId];
+      const nodeState = stateById.get(node.id);
+      if (!nodeState) {
+        continue;
+      }
+
+      node.position.set(nodeState.position.x, nodeState.position.y, nodeState.position.z);
+      node.normal.set(nodeState.normal.x, nodeState.normal.y, nodeState.normal.z);
+      node.force.set(nodeState.force.x, nodeState.force.y, nodeState.force.z);
+
+      const knitPathPoints = nodeState.knitPath.map((vec) => new THREE.Vector3(vec.x, vec.y, vec.z));
+      if (knitPathPoints.length === 0) {
+        continue;
+      }
+
+      if (!node.node_sphere_mesh) { // generation
+        const sphereGeometry = new THREE.SphereGeometry(node.start_of_row ? 0.3 : 0.1);
+        const sphereMaterial = this.pool.sphere_material[node.side];
+        node.node_sphere_mesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        node.node_sphere_mesh.position.set(node.position.x, node.position.y, node.position.z);
+        node.node_sphere_mesh.visible = this.show_nodes;
+        node.node_sphere_mesh.name = node.id.toString();
+        this.scene.add(node.node_sphere_mesh);
+
+        node.normal_helper = new THREE.ArrowHelper(node.normal, node.position, 1, 0xff0000);
+        node.normal_helper.visible = this.show_normals;
+        this.scene.add(node.normal_helper);
+
+        node.force_helper = new THREE.ArrowHelper(node.force, node.position, 1, 0x00ff00);
+        node.force_helper.visible = this.show_forces;
+        this.scene.add(node.force_helper);
+
+        node.curve = new THREE.CatmullRomCurve3(knitPathPoints, true);
+        node.yarn_geometry = new THREE.TubeGeometry(
+          node.curve,
+          knitPathPoints.length * 8,
+          node.yarnSpec.weight * this.knit_dimensions.yarn_thickness,
+          6,
+          true,
+        );
+
+        node.material =
+          this.pool.yarn_material[node.yarnSpec.color] ||
+          new THREE.MeshBasicMaterial({ color: node.yarnSpec.color, side: THREE.DoubleSide });
+        node.mesh = new THREE.Mesh(node.yarn_geometry, node.material);
+        this.scene.add(node.mesh);
+        this.pool.yarn_material[node.yarnSpec.color] = node.material;
+
+        for (const edge of this.graph.outgoing(node)) {
+          const to = this.graph.nodes[edge.to];
+          if (!to) {
+            continue;
+          }
+
+          const dir = to.position.clone().sub(node.position);
+          const length = Math.max(1e-6, dir.length());
+          const outgoingHelper = new THREE.ArrowHelper(dir.clone().divideScalar(length), node.position, length, 0xffff00);
+          outgoingHelper.visible = this.show_edges;
+          this.scene.add(outgoingHelper);
+          node.outgoing_helpers.push(outgoingHelper);
+        }
+      } else { // simulation update
+        node.curve.points = knitPathPoints;
+        node.yarn_geometry.dispose();
+        node.yarn_geometry = new THREE.TubeGeometry(
+          node.curve,
+          knitPathPoints.length * 8,
+          node.yarnSpec.weight * this.knit_dimensions.yarn_thickness,
+          6,
+          true,
+        );
+        node.mesh.geometry = node.yarn_geometry;
+
+        node.node_sphere_mesh.position.set(node.position.x, node.position.y, node.position.z);
+        node.node_sphere_mesh.updateMatrix();
+
+        node.normal_helper.position.set(node.position.x, node.position.y, node.position.z);
+        node.normal_helper.setDirection(node.normal);
+        node.normal_helper.updateMatrix();
+
+        node.force_helper.position.set(node.position.x, node.position.y, node.position.z);
+        node.force_helper.setDirection(node.force);
+        node.force_helper.updateMatrix();
+      }
+    }
+
+    for (const nodeId in this.graph.nodes) {
+      const node = this.graph.nodes[nodeId];
+      const outgoing = this.graph.outgoing(node);
+      for (let i = 0; i < node.outgoing_helpers.length; i++) {
+        const helper = node.outgoing_helpers[i];
+        if (!helper) {
+          continue;
+        }
+
+        const edge = outgoing[i];
+        if (!edge) {
+          continue;
+        }
+
+        const to = this.graph.nodes[edge.to];
+        if (!to) {
+          continue;
+        }
+
+        const dir = to.position.clone().sub(node.position);
+        const length = Math.max(1e-6, dir.length());
+        helper.setDirection(dir.clone().divideScalar(length));
+        helper.setLength(length);
+        helper.position.set(node.position.x, node.position.y, node.position.z);
+        helper.updateMatrix();
+      }
+    }
+  }
+
+  applyNodeDrafts(snapshots: GraphNodeSnapshot[]) {
+    if (snapshots.length === 0) {
+      return;
+    }
+
+    let hasChanges = false;
+
+    for (const snapshot of snapshots) {
+      const node = this.graph.nodes[snapshot.id];
+      if (!node) {
+        continue;
+      }
+
+      if (node.yarnSpec.color !== snapshot.color) {
+        node.yarnSpec.color = snapshot.color;
+        const material =
+          this.pool.yarn_material[snapshot.color] ||
+          new THREE.MeshBasicMaterial({ color: snapshot.color, side: THREE.DoubleSide });
+        node.material = material;
+        if (node.mesh) {
+          node.mesh.material = material;
+        }
+        this.pool.yarn_material[snapshot.color] = material;
+        hasChanges = true;
+      }
+
+      if (node.yarnSpec.weight !== snapshot.weight) {
+        node.yarnSpec.weight = snapshot.weight;
+        hasChanges = true;
+      }
+
+      if (node.type !== snapshot.type) {
+        node.type = snapshot.type;
+        hasChanges = true;
+      }
+
+      if (node.side !== snapshot.side) {
+        node.side = snapshot.side;
+        if (node.node_sphere_mesh && this.highlighted_node?.id !== node.id) {
+          node.node_sphere_mesh.material = this.pool.sphere_material[node.side];
+        }
+        hasChanges = true;
+      }
+
+      if (node.line_number !== snapshot.lineNumber) {
+        node.line_number = snapshot.lineNumber;
+        hasChanges = true;
+      }
+
+      if (node.row_number !== snapshot.rowNumber) {
+        node.row_number = snapshot.rowNumber;
+        hasChanges = true;
+      }
+
+      if (node.col_number !== snapshot.colNumber) {
+        node.col_number = snapshot.colNumber;
+        hasChanges = true;
+      }
+
+      if (node.start_of_row !== snapshot.startOfRow) {
+        node.start_of_row = snapshot.startOfRow;
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      this.render();
+    }
+  }
+
   init() {
-    d3.select(this.query_renderer).selectAll("*").remove();
+    d3.select(this.query_renderer).selectAll(".threed_graph").remove();
     this.three_div = d3.select(this.query_renderer).append("div").attr("class", "threed_graph").node();
-    this.three_div.addEventListener("mousemove", (event) => this.onPointerMove(event));
-    this.three_div.addEventListener("click", (event) => this.updateClickedNode(event));
+
+    this.three_div.addEventListener("mousemove", this.pointerMoveHandler);
+    this.three_div.addEventListener("click", this.clickHandler);
+    
     this.width = this.three_div.clientWidth;
     this.height = this.three_div.clientHeight;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -183,7 +384,8 @@ export class PatternViz3D {
 
     this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.2, 1500);
     this.camera.aspect = this.width / this.height;
-    this.camera.position.set(35, 35, 0);
+
+    this.camera.position.set(0, 0, -35);
     this.camera.updateProjectionMatrix();
 
     this.scene = new THREE.Scene();
@@ -199,7 +401,10 @@ export class PatternViz3D {
     this.gui.add(this, "show_nodes", this.show_nodes);
     this.gui.add(this, "show_forces", this.show_forces);
 
-    this.computeKnits();
+    this.initPool();
+    if (!this.deferCompute) {
+      this.computeKnits();
+    }
 
     const controls = new OrbitControls(this.camera, this.renderer.domElement);
     controls.screenSpacePanning = true;
@@ -222,6 +427,10 @@ export class PatternViz3D {
     });
   }
   render() {
+    if (!this.renderer || !this.scene || !this.camera || !this.three_div) {
+      return;
+    }
+
     for (const node_id in this.graph.nodes) {
       const node = this.graph.nodes[node_id];
       node.preRender(this);
@@ -231,7 +440,7 @@ export class PatternViz3D {
     }
     let row_nodes = [];
     let positions: Record<number, THREE.Vector2Like> = {};
-    if (this.highlighted_node) {
+    if (this.highlighted_node && this.graph.graph_wasm) {
       let node_c = this.graph.graph_wasm.getNode(this.highlighted_node.id);
       let row = this.graph.graph_wasm.row(node_c);
       row_nodes = new Array(row.nodes.size()).fill(0).map((_, idx) => {
@@ -305,6 +514,9 @@ export class PatternViz3D {
   }
 
   highlightNode(node: KnitNode3D) {
+    if (!node || !node.node_sphere_mesh) {
+      return;
+    }
     if (node.id != this.highlighted_node?.id) {
       this.changed_highlighted_node = true;
 
@@ -312,13 +524,18 @@ export class PatternViz3D {
         listener(node);
       }
     }
-    if (this.highlighted_node) {
+    if (this.highlighted_node?.node_sphere_mesh) {
       this.highlighted_node.node_sphere_mesh.material = this.pool.sphere_material[this.highlighted_node.side];
+      
+      const sphereGeometry = new THREE.SphereGeometry(0.1);
+      this.highlighted_node.node_sphere_mesh.geometry = sphereGeometry;
       this.highlighted_node.node_sphere_mesh.visible = this.show_nodes;
       this.highlighted_node = null;
     }
     if (node) {
       this.highlighted_node = node;
+      const sphereGeometry = new THREE.SphereGeometry(0.3);
+      node.node_sphere_mesh.geometry = sphereGeometry;
       node.node_sphere_mesh.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
       node.node_sphere_mesh.visible = true;
     }
@@ -358,6 +575,13 @@ export class PatternViz3D {
   }
   updateClickedNode(event: MouseEvent) {
     this.onPointerMove(event);
+    if (!this.highlighted_node) {
+      return;
+    }
+
+    for (const listener of this.eventListeners.click) {
+      listener(this.highlighted_node);
+    }
   }
   eventListeners: Record<PatternViz3DEvents, ((node: KnitNode3D) => void)[]> = Object.keys(PatternViz3DEvents)
     .map((event) => {
@@ -405,11 +629,25 @@ export class PatternViz3D {
     this.render();
   }
   dispose() {
-    this.three_div.removeEventListener("mousemove", (event) => this.onPointerMove(event));
-    this.three_div.removeEventListener("click", (event) => this.updateClickedNode(event));
-    this.three_div.remove();
-    this.scene.clear();
-    this.gui.destroy();
+    if (this.renderer && this.renderer instanceof THREE.WebGLRenderer) {
+      this.renderer.setAnimationLoop(null);
+    }
+    if (this.three_div) {
+      this.three_div.removeEventListener("mousemove", this.pointerMoveHandler);
+      this.three_div.removeEventListener("click", this.clickHandler);
+      this.three_div.remove();
+      this.three_div = null;
+    }
+    if (this.scene) {
+      this.scene.clear();
+    }
+    if (this.gui) {
+      this.gui.destroy();
+      this.gui = null;
+    }
+    if (this.renderer && this.renderer instanceof THREE.WebGLRenderer) {
+      this.renderer.dispose();
+    }
     this.graph.dispose();
   }
 }

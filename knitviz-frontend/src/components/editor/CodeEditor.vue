@@ -1,31 +1,26 @@
-<template>
-  <div class="editor_wrapper">
-    <div class="editor" ref="editor"></div>
-    <div class="actions">
-      <Btn btn_width="8rem" @click="generate">Generate</Btn>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { basicSetup } from "codemirror";
-import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { javascript } from "@codemirror/lang-javascript";
 import Btn from "@/components/ui/Btn.vue";
 import { useGlobalEditorStore } from "@/stores/globalEditorStore";
+import { useCodeSamplesStore } from "@/stores/samples/codesamples";
 import { codeAdapter } from "@/components/editor/adapters/codeAdapter";
 import type { GraphSnapshot } from "@/knitgraph/snapshot";
 
 const editor = useTemplateRef("editor");
 const store = useGlobalEditorStore();
+const samplesStore = useCodeSamplesStore();
 const view = ref(null as EditorView | null);
 const localCode = ref("");
 
 const emit = defineEmits<{
   (e: "generate", payload: { code: string; graph: GraphSnapshot }): void;
 }>();
+
+const sampleNames = computed(() => samplesStore.names);
 
 const setCode = (nextCode: string) => {
   if (!view.value) {
@@ -68,11 +63,20 @@ const setupEditor = () => {
     }),
     parent: editor.value,
   });
-
 };
 
 const generate = () => {
   emit("generate", codeAdapter.toStore(localCode.value));
+};
+
+const applySample = (key: string) => {
+  const sample = samplesStore.getSample(key);
+  if (!sample) {
+    return;
+  }
+
+  localCode.value = sample;
+  setCode(sample);
 };
 
 onMounted(() => {
@@ -101,23 +105,41 @@ defineExpose({
 });
 </script>
 
+<template>
+  <div class="editor-container">
+    <div class="samples" v-if="sampleNames.length > 0">
+      <span class="samples-label">Code Samples</span>
+      <Btn btn_width="7.5rem" btn_height="2.6rem" v-for="key in sampleNames" :key="key" @click="applySample(key)">
+        {{ key }}
+      </Btn>
+    </div>
+    <div class="editor" ref="editor"></div>
+  </div>
+</template>
+
 <style lang="scss">
 .editor {
-  max-height: 100%;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  padding: 10px;
-  // max-height: v-bind(view_height);
+  padding: 8px;
   overflow-y: auto;
+  border: var(--border-container);
+  border-radius: var(--border-container-radius);
 }
 
-.editor_wrapper {
-  max-height: 100%;
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  height: 100%;
   width: 100%;
 }
 
-.actions {
+.samples {
   display: flex;
-  justify-content: flex-end;
-  padding: 0.5rem 0.75rem 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
 }
 </style>
