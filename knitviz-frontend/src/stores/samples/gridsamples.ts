@@ -63,6 +63,66 @@ const gridSampleMap: Record<string, GridSample> = {
       };
     }),
   },
+  "Diagonal Fade": {
+    rows: 18,
+    cols: 24,
+    cells: Array.from({ length: 18 * 24 }, (_, index) => {
+      const row = Math.floor(index / 24);
+      const col = index % 24;
+      const diagonalBand = Math.floor((row + col) / 4) % 3;
+
+      if (diagonalBand === 0) {
+        return {
+          row,
+          col,
+          type: "KNIT",
+          color: "#4f88ff",
+        };
+      }
+
+      if (diagonalBand === 1) {
+        return {
+          row,
+          col,
+          type: "PURL",
+          color: "#ffd27a",
+        };
+      }
+
+      return {
+        row,
+        col,
+        type: "YARN_OVER",
+        color: "#ff8d73",
+      };
+    }),
+  },
+  "Center Texture": {
+    rows: 20,
+    cols: 26,
+    cells: Array.from({ length: 20 * 26 }, (_, index) => {
+      const row = Math.floor(index / 26);
+      const col = index % 26;
+      const distanceToCenter = Math.abs(col - 13);
+      const isCenterBand = distanceToCenter <= 2;
+
+      if (isCenterBand && row % 2 === 0) {
+        return {
+          row,
+          col,
+          type: "YARN_OVER",
+          color: "#be6aff",
+        };
+      }
+
+      return {
+        row,
+        col,
+        type: isCenterBand ? "PURL" : "KNIT",
+        color: isCenterBand ? "#9e79ff" : "#5d8cff",
+      };
+    }),
+  },
 };
 
 export const useGridSamplesStore = defineStore("gridSamples", () => {

@@ -37,16 +37,10 @@ const pendingSnapshot = shallowRef<GraphSnapshot | null>(null);
 
 const status = reactive<VizStatus>({ ...initialStatus });
 
+const cloneInitialStatus = (): VizStatus => ({ ...initialStatus });
+
 const emitStatus = () => {
-  emit("status", {
-    isLoading: status.isLoading,
-    isReady: status.isReady,
-    isRunning: status.isRunning,
-    isCancelling: status.isCancelling,
-    isSimulationStopping: status.isSimulationStopping,
-    step: status.step,
-    accDelta: status.accDelta,
-  });
+  emit("status", { ...status });
 };
 
 onMounted(() => {
@@ -90,13 +84,13 @@ const startRun = (snapshot: GraphSnapshot) => {
   try {
     ensureWorker();
   } catch {
-    const snapshot = currentRunSnapshot.value;
-    if (!snapshot) {
+    const currentSnapshot = currentRunSnapshot.value;
+    if (!currentSnapshot) {
       resetStatus();
       return;
     }
 
-    void createRendererWithoutWorker(snapshot).then((isRendererReady) => {
+    void createRendererWithoutWorker(currentSnapshot).then((isRendererReady) => {
       if (!isRendererReady) {
         resetStatus();
         return;
@@ -213,7 +207,7 @@ const setStatus = (patch: Partial<VizStatus>) => {
 const setStatusLoading = () => {
   clearCancelTimeout();
   setStatus({
-    ...initialStatus,
+    ...cloneInitialStatus(),
     isLoading: true,
   });
 };
@@ -221,7 +215,7 @@ const setStatusLoading = () => {
 const setStatusReady = () => {
   clearCancelTimeout();
   setStatus({
-    ...initialStatus,
+    ...cloneInitialStatus(),
     isReady: true,
   });
 };
@@ -238,7 +232,7 @@ const clearRunState = (clearSnapshot = true) => {
     currentRunSnapshot.value = null;
   }
 
-  setStatus({ ...initialStatus });
+  setStatus(cloneInitialStatus());
 };
 
 const createRendererWithWorker = async (snapshot: GraphSnapshot, nodeStates: WorkerNodeState[]) => {
@@ -275,7 +269,7 @@ const dispose = () => {
 };
 
 const resetStatus = () => {
-  setStatus({ ...initialStatus });
+  setStatus(cloneInitialStatus());
 };
 
 const renderOffline = async (snapshot: GraphSnapshot | null) => {

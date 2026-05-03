@@ -29,6 +29,7 @@ export enum PatternViz3DEvents {
   mouseover = "mouseover",
   mouseout = "mouseout",
   render = "render",
+  paint = "paint",
 }
 export class PatternViz3D {
   width = 1000;
@@ -70,8 +71,17 @@ export class PatternViz3D {
   show_forces = true;
   show_nodes = true;
   deferCompute = false;
+  controls: OrbitControls | null = null;
+
+  isDrawingMode = false;
+  activeDrawColor = "#000000";
+  isPainting = false;
+
   private pointerMoveHandler = (event: MouseEvent) => this.onPointerMove(event);
   private clickHandler = (event: MouseEvent) => this.updateClickedNode(event);
+  private mouseDownHandler = (event: MouseEvent) => this.onMouseDown(event);
+  private mouseUpHandler = (event: MouseEvent) => this.onMouseUp(event);
+
   constructor(
     public query_renderer: string,
     graph: KnitGraph,
@@ -375,6 +385,8 @@ export class PatternViz3D {
 
     this.three_div.addEventListener("mousemove", this.pointerMoveHandler);
     this.three_div.addEventListener("click", this.clickHandler);
+    this.three_div.addEventListener("mousedown", this.mouseDownHandler);
+    this.three_div.addEventListener("mouseup", this.mouseUpHandler);
     
     this.width = this.three_div.clientWidth;
     this.height = this.three_div.clientHeight;
@@ -420,9 +432,10 @@ export class PatternViz3D {
       this.renderer.render(this.scene, this.camera);
     });
     controls.update();
+    this.controls = controls;
     this.renderer.render(this.scene, this.camera);
     (this.renderer as any).setAnimationLoop(() => {
-      controls.update();
+      this.controls?.update();
       this.render();
     });
   }
@@ -567,12 +580,67 @@ export class PatternViz3D {
       const id = parseInt(intersect.object.name);
       const node = this.graph.nodes[id];
 
-      this.highlightNode(node);
-      for (const listener of this.eventListeners.mouseover) {
-        listener(node);
+      // Experimental: In drawing mode while painting, paint the node instead of highlighting
+      if (this.isDrawingMode && this.isPainting) {
+        this.paintNode(node);
+      } else {
+        this.highlightNode(node);
+        for (const listener of this.eventListeners.mouseover) {
+          listener(node);
+        }
       }
     }
   }
+  
+  paintNode(node: KnitNode3D) {
+    if (!node || !node.mesh) {
+      return;
+    }
+
+    const colorValue = parseInt(this.activeDrawColor.replace("#", ""), 16);
+    node.yarnSpec.color = this.activeDrawColor;
+
+    const material =
+      this.pool.yarn_material[this.activeDrawColor] ||
+      new THREE.MeshBasicMaterial({ color: colorValue, side: THREE.DoubleSide });
+    
+    node.material = material;
+    node.mesh.material = material;
+    this.pool.yarn_material[this.activeDrawColor] = material;
+
+    for (const listener of this.eventListeners.paint) {
+      listener(node);
+    }
+
+    this.render();
+  }
+
+  onMouseDown(event: MouseEvent) {
+    if (!this.isDrawingMode) {
+      return;
+    }
+
+    this.isPainting = true;
+    this.onPointerMove(event);
+  }
+
+  onMouseUp(event: MouseEvent) {
+    this.isPainting = false;
+  }
+
+  setDrawingMode(enabled: boolean) {
+    this.isDrawingMode = enabled;
+    this.isPainting = false;
+
+    if (this.controls) {
+      this.controls.enabled = !enabled;
+    }
+  }
+
+  setDrawingColor(hexColor: string) {
+    this.activeDrawColor = hexColor;
+  }
+  
   updateClickedNode(event: MouseEvent) {
     this.onPointerMove(event);
     if (!this.highlighted_node) {
@@ -606,6 +674,9 @@ export class PatternViz3D {
       case PatternViz3DEvents.render:
         this.eventListeners.render.push(callback);
         break;
+      case PatternViz3DEvents.paint:
+        this.eventListeners.paint.push(callback);
+        break;
       default:
         throw new Error(`Event ${event} not supported`);
     }
@@ -632,9 +703,15 @@ export class PatternViz3D {
     if (this.renderer && this.renderer instanceof THREE.WebGLRenderer) {
       this.renderer.setAnimationLoop(null);
     }
+    if (this.controls) {
+      this.controls.dispose();
+      this.controls = null;
+    }
     if (this.three_div) {
       this.three_div.removeEventListener("mousemove", this.pointerMoveHandler);
       this.three_div.removeEventListener("click", this.clickHandler);
+      this.three_div.removeEventListener("mousedown", this.mouseDownHandler);
+      this.three_div.removeEventListener("mouseup", this.mouseUpHandler);
       this.three_div.remove();
       this.three_div = null;
     }

@@ -11,7 +11,7 @@ import VisualEditor from "@/components/editor/VisualEditor.vue";
 import VizRenderer from "@/components/editor/VizRenderer.vue";
 import Btn from "@/components/ui/Btn.vue";
 import { EditorType, useGlobalEditorStore } from "@/stores/globalEditorStore";
-import type { DraftPreviewPayload, NodeDraftsById, VizStatus } from "@/components/editor/editor.types";
+import type { NodeDraftsById, VizStatus } from "@/components/editor/editor.types";
 
 const store = useGlobalEditorStore();
 const editorType = EditorType;
@@ -30,7 +30,7 @@ const vizRendererRef = ref<{
   getViz: () => PatternViz3D | null;
 } | null>(null);
 
-const activeTab = ref<EditorType>(EditorType.CODE);
+const activeTab = ref<EditorType>(EditorType.VISUAL);
 const overlayManager = shallowRef<KnitGraphOverlayManager | null>(null);
 const patternViz = shallowRef<PatternViz3D | null>(null);
 const selectedNodeId = ref<number | null>(null);
@@ -47,6 +47,10 @@ const preview = reactive<VizStatus>({
 });
 
 const simulationTimeStep = ref(100);
+
+const isDrawingMode = ref(false);
+const drawingColor = ref("#000000");
+const hasPendingDrafts = computed(() => Object.keys(nodeDrafts.value).length > 0);
 
 const isRunActive = computed(() => preview.isLoading || preview.isReady);
 const runLabel = computed(() => (isRunActive.value ? "Hide Preview" : "Show Preview"));
@@ -114,36 +118,6 @@ const selectNodeFromEditor = (nodeId: number) => {
   vizInstance.render();
 };
 
-const applyDraftsToViz = (draftpayloads: DraftPreviewPayload[]) => {
-  const vizInstance = vizRendererRef.value?.getViz();
-  if (!vizInstance || draftpayloads.length === 0) {
-    return;
-  }
-
-  const completeSnapshots = draftpayloads
-    .map(({ id }) => nodeDrafts.value[id])
-    .filter((draft) => draft !== undefined);
-
-  if (completeSnapshots.length === 0) {
-    return;
-  }
-
-  vizInstance.applyNodeDrafts(completeSnapshots);
-};
-
-const applyAllDraftsToViz = () => {
-  const vizInstance = vizRendererRef.value?.getViz();
-  if (!vizInstance) {
-    return;
-  }
-
-  const allSnapshots = Object.values(nodeDrafts.value);
-  if (allSnapshots.length === 0) {
-    return;
-  }
-
-  vizInstance.applyNodeDrafts(allSnapshots);
-};
 
 const resetViz = (clearSelection = true) => {
   if (clearSelection) {
@@ -169,13 +143,7 @@ const resetViz = (clearSelection = true) => {
 };
 
 const applyVizStatus = (status: VizStatus) => {
-  preview.isLoading = status.isLoading;
-  preview.isReady = status.isReady;
-  preview.isRunning = status.isRunning;
-  preview.isCancelling = status.isCancelling;
-  preview.isSimulationStopping = status.isSimulationStopping;
-  preview.step = status.step;
-  preview.accDelta = status.accDelta;
+  Object.assign(preview, status);
 };
 
 const attachOverlayManager = (vizInstance: PatternViz3D | null) => {
@@ -224,6 +192,24 @@ const attachVizSelection = (vizInstance: PatternViz3D | null) => {
       activeTab.value = EditorType.NODE;
     }
   });
+
+  vizInstance.on(PatternViz3DEvents.paint, (node: KnitNode3D) => {
+    const sourceNode = store.state.graph.nodes.find((graphNode) => graphNode.id === node.id);
+    if (!sourceNode) {
+      return;
+    }
+
+    const currentDraft = nodeDrafts.value[node.id] ?? sourceNode;
+    const nextDraft = {
+      ...currentDraft,
+      color: node.yarnSpec.color,
+    };
+
+    nodeDrafts.value = {
+      ...nodeDrafts.value,
+      [node.id]: nextDraft,
+    };
+  });
 };
 
 const startRun = () => {
@@ -268,40 +254,37 @@ const triggerAutoPreview = () => {
 };
 
 const generateFromActiveEditor = () => {
-  if (activeTab.value === EditorType.NODE) {
-    applyAllNodeChanges();
-    return;
+  switch (activeTab.value) {
+    case EditorType.NODE:
+      applyAllNodeChanges();
+      return;
+    case EditorType.CODE:
+      codeEditorRef.value?.generate();
+      return;
+    case EditorType.GRID:
+      gridEditorRef.value?.generate();
+      return;
+    default:
+      visualEditorRef.value?.generate();
   }
+};
 
-  if (activeTab.value === EditorType.CODE) {
-    codeEditorRef.value?.generate();
-    return;
-  }
-
-  if (activeTab.value === EditorType.GRID) {
-    gridEditorRef.value?.generate();
-    return;
-  }
-
-  visualEditorRef.value?.generate();
+const applyGeneratedGraph = <TPayload>(payload: TPayload, apply: (value: TPayload) => void) => {
+  nodeDrafts.value = {};
+  apply(payload);
+  triggerAutoPreview();
 };
 
 const onCodeGenerate = (payload: Parameters<typeof store.applyCodeGenerate>[0]) => {
-  nodeDrafts.value = {};
-  store.applyCodeGenerate(payload);
-  triggerAutoPreview();
+  applyGeneratedGraph(payload, (value) => store.applyCodeGenerate(value));
 };
 
 const onGridGenerate = (payload: Parameters<typeof store.applyGridGenerate>[0]) => {
-  nodeDrafts.value = {};
-  store.applyGridGenerate(payload);
-  triggerAutoPreview();
+  applyGeneratedGraph(payload, (value) => store.applyGridGenerate(value));
 };
 
 const onVisualGenerate = (payload: Parameters<typeof store.applyVisualGenerate>[0]) => {
-  nodeDrafts.value = {};
-  store.applyVisualGenerate(payload);
-  triggerAutoPreview();
+  applyGeneratedGraph(payload, (value) => store.applyVisualGenerate(value));
 };
 
 const applyAllNodeChanges = () => {
@@ -323,7 +306,8 @@ const onVizStatus = (status: VizStatus) => {
 const onVizReady = (vizInstance: PatternViz3D) => {
   attachVizSelection(vizInstance);
   attachOverlayManager(vizInstance);
-  applyAllDraftsToViz();
+  vizInstance.setDrawingMode(isDrawingMode.value);
+  vizInstance.setDrawingColor(drawingColor.value);
 };
 
 const syncOverlayForActiveTab = () => {
@@ -335,30 +319,16 @@ onUnmounted(() => {
   vizRendererRef.value?.dispose();
 });
 
-watch(selectedNode, (node) => {
-  if (!node) {
-    return;
-  }
-
-  const nodeDraft = nodeDrafts.value[node.id];
-  if (!nodeDraft) {
-    return;
-  }
-
-  applyDraftsToViz([
-    {
-      id: node.id,
-      draft: {
-        color: nodeDraft.color,
-        type: nodeDraft.type,
-        side: nodeDraft.side,
-      },
-    },
-  ]);
-});
-
 watch(activeTab, () => {
   syncOverlayForActiveTab();
+});
+
+watch(isDrawingMode, (enabled) => {
+  vizRendererRef.value?.getViz()?.setDrawingMode(enabled);
+});
+
+watch(drawingColor, (color) => {
+  vizRendererRef.value?.getViz()?.setDrawingColor(color);
 });
 </script>
 
@@ -369,16 +339,21 @@ watch(activeTab, () => {
         <h3>Build the Model</h3>
       </header>
       <div class="tabs">
+        <button class="tab" :class="{ active: activeTab === editorType.VISUAL }" @click="activeTab = editorType.VISUAL">Visual</button>
         <button class="tab" :class="{ active: activeTab === editorType.CODE }" @click="activeTab = editorType.CODE">Code</button>
         <button class="tab" :class="{ active: activeTab === editorType.GRID }" @click="activeTab = editorType.GRID">Grid</button>
-        <button class="tab" :class="{ active: activeTab === editorType.VISUAL }" @click="activeTab = editorType.VISUAL">Visual</button>
         <button class="tab" :class="{ active: activeTab === editorType.NODE }" @click="activeTab = editorType.NODE">Node</button>
       </div>
 
       <div class="editor-content">
         <Code ref="codeEditorRef" v-show="activeTab === editorType.CODE" @generate="onCodeGenerate" />
         <GridEditor ref="gridEditorRef" v-show="activeTab === editorType.GRID" @generate="onGridGenerate" />
-        <VisualEditor ref="visualEditorRef" v-show="activeTab === editorType.VISUAL" @generate="onVisualGenerate" />
+        <VisualEditor
+          ref="visualEditorRef"
+          v-show="activeTab === editorType.VISUAL"
+          :is-active="activeTab === editorType.VISUAL"
+          @generate="onVisualGenerate"
+        />
         <NodeEditor
           v-if="activeTab === editorType.NODE"
           :selected-node="selectedNode"
@@ -387,7 +362,6 @@ watch(activeTab, () => {
           :node-drafts="nodeDrafts"
           @select-node="selectNodeFromEditor"
           @update-node-drafts="nodeDrafts = $event"
-          @preview-node-draft="applyDraftsToViz([$event])"
         />
       </div>
     </section>
@@ -412,6 +386,25 @@ watch(activeTab, () => {
         <span><strong>Nodes:</strong> {{ store.state.graph.nodes.length }}</span>
         <span><strong>Step:</strong> {{ preview.step }}</span>
         <span><strong>Delta:</strong> {{ preview.accDelta.toFixed(6) }}</span>
+      </div>
+      <div class="drawing-controls" v-if="preview.isReady">
+        <label class="control-group">
+          <input type="checkbox" v-model="isDrawingMode" />
+          <span>Drawing Mode</span>
+        </label>
+        <label class="control-group" v-if="isDrawingMode">
+          <span>Color:</span>
+          <input type="color" v-model="drawingColor" />
+        </label>
+        <Btn
+          v-if="isDrawingMode"
+          btn_width="9.5rem"
+          btn_height="2.2rem"
+          :disabled="!hasPendingDrafts"
+          @click="applyAllNodeChanges"
+        >
+          Apply Drawings
+        </Btn>
       </div>
       <VizRenderer ref="vizRendererRef" @status="onVizStatus" @viz-ready="onVizReady" />
     </section>
@@ -476,6 +469,36 @@ watch(activeTab, () => {
   gap: 0.35rem 0.8rem;
   color: var(--color-text);
   margin-bottom: 0.45rem;
+}
+
+.drawing-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+  padding: 0.45rem;
+  background: var(--color-background-soft);
+  border: var(--border-container);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.control-group input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.control-group input[type="color"] {
+  width: 2.5rem;
+  height: 1.8rem;
+  cursor: pointer;
+  border: var(--border-container);
 }
 
 @media (max-width: 980px) {

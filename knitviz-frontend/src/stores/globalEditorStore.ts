@@ -23,13 +23,12 @@ export enum EditorType {
 }
 
 export const useGlobalEditorStore = defineStore("globalEditor", () => {
-
   const state = reactive<GlobalEditorState>({
     graph: {
       nodes: [],
       edges: [],
     },
-    sourceEditor: EditorType.CODE,
+    sourceEditor: EditorType.VISUAL,
     editors: {
       code: {
         editorContent: "",
@@ -47,25 +46,26 @@ export const useGlobalEditorStore = defineStore("globalEditor", () => {
     revision: 0,
   });
 
+  const updateGraphState = (graph: GraphSnapshot, sourceEditor: EditorType) => {
+    state.graph = graph;
+    state.sourceEditor = sourceEditor;
+    state.revision += 1;
+  };
+
   const applyCodeGenerate = (payload: { code: string; graph: GraphSnapshot }) => {
     state.editors.code.editorContent = payload.code;
-    state.graph = payload.graph;
-    state.sourceEditor = EditorType.CODE;
-    state.revision += 1;
+    updateGraphState(payload.graph, EditorType.CODE);
   };
 
   const applyGridGenerate = (payload: { graph: GraphSnapshot; grid: GridEditorState }) => {
-    state.graph = payload.graph;
-    state.sourceEditor = EditorType.GRID;
     state.editors.grid = payload.grid;
-    state.revision += 1;
+    updateGraphState(payload.graph, EditorType.GRID);
   };
 
   const applyVisualGenerate = (payload: { graph: GraphSnapshot; visual: VisualEditorState }) => {
-    state.graph = payload.graph;
-    state.sourceEditor = EditorType.VISUAL;
     state.editors.visual = payload.visual;
-    state.revision += 1;
+    state.editors.code.editorContent = payload.visual.generatedCode;
+    updateGraphState(payload.graph, EditorType.VISUAL);
   };
 
   const applyNodeSnapshots = (updatedNodes: GraphNodeSnapshot[]) => {
@@ -73,16 +73,18 @@ export const useGlobalEditorStore = defineStore("globalEditor", () => {
       return;
     }
 
+    const nodeIndexById = new Map(state.graph.nodes.map((node, index) => [node.id, index]));
+
     for (const updatedNode of updatedNodes) {
-      const nodeIndex = state.graph.nodes.findIndex((node) => node.id === updatedNode.id);
-      if (nodeIndex < 0) {
+      const nodeIndex = nodeIndexById.get(updatedNode.id);
+      if (nodeIndex === undefined) {
         continue;
       }
 
       state.graph.nodes[nodeIndex] = { ...updatedNode };
     }
 
-    state.revision += 1;
+    updateGraphState(state.graph, EditorType.NODE);
   };
 
   return {

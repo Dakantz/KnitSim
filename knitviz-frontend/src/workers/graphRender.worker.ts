@@ -5,13 +5,14 @@ import KnitSimLib from "@/knitgraph/sim/knitsim-lib";
 import { KnitEdgeDirection, KnitNodeType, KnitSide } from "@/knitgraph";
 import type { GraphSnapshot } from "@/knitgraph/snapshot";
 import { GraphWorkerMessageType, type GraphWorkerRequest, type GraphWorkerResponse, type WorkerNodeState } from "@/knitgraph/workerProtocol";
+import type { KnitGraphC, KnitSim, Vector3f, Vector3fVector } from "@/knitgraph/sim/knitsim-lib";
 
 type InitMessage = Extract<GraphWorkerRequest, { type: GraphWorkerMessageType.Init }>;
 
 type WorkerGraphContext = {
   snapshot: GraphSnapshot;
-  graph: any;
-  sim: any;
+  graph: KnitGraphC;
+  sim: KnitSim;
   cfg: {
     yarn_thickness: number;
   };
@@ -57,12 +58,16 @@ const initializeRun = async (message: InitMessage) => {
       nodeStates,
     });
   } catch (error) {
-    sendMessage({
-      type: GraphWorkerMessageType.Error,
-      runId: message.runId,
-      message: error instanceof Error ? error.message : "Failed to initialize graph worker",
-    });
+    emitError(message.runId, error, "Failed to initialize graph worker");
   }
+};
+
+const emitError = (runId: number, error: unknown, fallbackMessage: string) => {
+  sendMessage({
+    type: GraphWorkerMessageType.Error,
+    runId,
+    message: error instanceof Error ? error.message : fallbackMessage,
+  });
 };
 
 const cancelRun = (runId: number) => {
@@ -165,15 +170,29 @@ const disposeContext = () => {
 };
 
 const getNodeStatesFromContext = (context: WorkerGraphContext): WorkerNodeState[] => {
-  const toPath = (knitPath: any) => {
-    return Array.from({ length: knitPath.size() }, (_, index) => {
-      const vector = knitPath.get(index);
-      return {
-        x: vector.x,
-        y: vector.y,
-        z: vector.z,
-      };
-    });
+  const toVec3 = (vector: Vector3f) => ({
+    x: vector.x,
+    y: vector.y,
+    z: vector.z,
+  });
+
+  const toPath = (knitPath: Vector3fVector) => {
+    try {
+      return Array.from({ length: knitPath.size() }, (_, index) => {
+        const vector = knitPath.get(index);
+        if (!vector) {
+          return {
+            x: 0,
+            y: 0,
+            z: 0,
+          };
+        }
+
+        return toVec3(vector);
+      });
+    } finally {
+      knitPath.delete();
+    }
   };
 
   return context.snapshot.nodes.map((nodeSnapshot) => {
@@ -181,25 +200,17 @@ const getNodeStatesFromContext = (context: WorkerGraphContext): WorkerNodeState[
     const force = context.sim.force(nodeSnapshot.id);
     const knitPath = context.graph.knitPath(nodeSnapshot.id);
 
-    return {
-      id: nodeSnapshot.id,
-      position: {
-        x: node.position.x,
-        y: node.position.y,
-        z: node.position.z,
-      },
-      normal: {
-        x: node.normal.x,
-        y: node.normal.y,
-        z: node.normal.z,
-      },
-      force: {
-        x: force.x,
-        y: force.y,
-        z: force.z,
-      },
-      knitPath: toPath(knitPath),
-    };
+    try {
+      return {
+        id: nodeSnapshot.id,
+        position: toVec3(node.position),
+        normal: toVec3(node.normal),
+        force: toVec3(force),
+        knitPath: toPath(knitPath),
+      };
+    } finally {
+      force.delete();
+    }
   });
 };
 
@@ -282,6 +293,10 @@ const handleWorkerMessage = async (message: GraphWorkerRequest) => {
     case GraphWorkerMessageType.Init: {
       await initializeRun(message);
       return;
+    }
+    default: {
+      const neverMessage: never = message;
+      throw new Error(`Unsupported worker message: ${JSON.stringify(neverMessage)}`);
     }
   }
 };

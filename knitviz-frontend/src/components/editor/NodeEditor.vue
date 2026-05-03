@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { KnitNodeType, KnitSide } from "@/knitgraph";
 import type { GraphNodeSnapshot } from "@/knitgraph/snapshot";
-import type { DraftPreviewPayload, NodeDraft, NodeDraftsById } from "@/components/editor/editor.types";
+import type { NodeDraft, NodeDraftsById } from "@/components/editor/editor.types";
 
 const props = defineProps<{
   selectedNode: GraphNodeSnapshot | null;
@@ -14,15 +14,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "select-node", value: number): void;
   (e: "update-node-drafts", value: NodeDraftsById): void;
-  (e: "preview-node-draft", value: DraftPreviewPayload): void;
 }>();
 
 const nodeTypeOptions = Object.values(KnitNodeType);
 const sideOptions = Object.values(KnitSide);
 const snapshotNodeListRef = ref<HTMLElement | null>(null);
+const nodeFilter = ref("");
 
 const hasSelection = computed(() => Boolean(props.selectedNode));
 const snapshotNodeIds = computed(() => props.snapshotNodes.map((node) => node.id).sort((a, b) => a - b));
+const draftNodeIdSet = computed(() => new Set(Object.keys(props.nodeDrafts).map((id) => Number(id))));
+const selectedNodeHasDraft = computed(() => {
+  if (!props.selectedNode) {
+    return false;
+  }
+
+  return draftNodeIdSet.value.has(props.selectedNode.id);
+});
+
+const filteredNodeIds = computed(() => {
+  const filter = nodeFilter.value.trim();
+  if (!filter) {
+    return snapshotNodeIds.value;
+  }
+
+  return snapshotNodeIds.value.filter((nodeId) => String(nodeId).includes(filter));
+});
 
 const toColorString = (color: number | string) => {
   if (typeof color === "number") {
@@ -127,14 +144,18 @@ const updateSelectedNodeDraft = (patch: Partial<NodeDraft>) => {
   }
 
   emit("update-node-drafts", nextDrafts);
-  emit("preview-node-draft", {
-    id: node.id,
-    draft: {
-      color: nextDraft.color,
-      type: nextDraft.type,
-      side: nextDraft.side,
-    },
-  });
+};
+
+const resetSelectedNodeDraft = () => {
+  if (!props.selectedNode) {
+    return;
+  }
+
+  const selectedId = props.selectedNode.id;
+  const nextDrafts: NodeDraftsById = { ...props.nodeDrafts };
+  
+  delete nextDrafts[selectedId];
+  emit("update-node-drafts", nextDrafts);
 };
 
 watch(
@@ -158,23 +179,38 @@ watch(
     <div class="node-layout">
       <aside class="snapshot-list">
         <h4>Snapshot Node IDs</h4>
+        <label class="snapshot-filter">
+          Filter
+          <input v-model="nodeFilter" type="text" placeholder="Node ID..." />
+        </label>
         <ul ref="snapshotNodeListRef">
-          <li v-for="nodeId in snapshotNodeIds" :key="nodeId">
+          <li v-for="nodeId in filteredNodeIds" :key="nodeId">
             <button
               class="snapshot-node-btn"
               :data-node-id="nodeId"
-              :class="{ selected: selectedNodeId === nodeId }"
+              :class="{ selected: selectedNodeId === nodeId, drafted: draftNodeIdSet.has(nodeId) }"
               type="button"
               @click="emit('select-node', nodeId)"
             >
               node {{ nodeId }}
+              <span v-if="draftNodeIdSet.has(nodeId)" class="draft-badge">draft</span>
             </button>
           </li>
         </ul>
       </aside>
 
       <div class="property-panel" v-if="hasSelection">
-        <h4>Node {{ selectedNode?.id }}</h4>
+        <div class="property-panel-header">
+          <h4>Node {{ selectedNode?.id }}</h4>
+          <button
+            v-if="selectedNodeHasDraft"
+            class="reset-draft-btn"
+            type="button"
+            @click="resetSelectedNodeDraft"
+          >
+            Reset Draft
+          </button>
+        </div>
         <p>Editing all mutable node properties.</p>
         <label>
           ID
@@ -263,6 +299,21 @@ watch(
   flex-direction: column;
 }
 
+.snapshot-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.35rem;
+}
+
+.snapshot-filter input {
+  border: var(--border-container);
+  background: var(--color-background);
+  color: var(--color-text);
+  min-height: 1.85rem;
+  padding: 0.1rem 0.3rem;
+}
+
 .snapshot-list ul {
   margin: 0;
   padding: 0;
@@ -287,6 +338,9 @@ input[disabled] {
 .snapshot-node-btn {
   width: 100%;
   text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border: var(--border-container);
   background: var(--color-background-soft);
   color: var(--color-text);
@@ -294,9 +348,43 @@ input[disabled] {
   cursor: pointer;
 }
 
+.snapshot-node-btn.drafted {
+  border-color: #7f58ff;
+}
+
 .snapshot-node-btn.selected {
   background: var(--color-background-mute);
   border-color: var(--color-border-hover);
+}
+
+.draft-badge {
+  font-size: 0.68rem;
+  line-height: 1;
+  border: 1px solid #7f58ff;
+  color: #7f58ff;
+  border-radius: 0.75rem;
+  padding: 0.12rem 0.35rem;
+}
+
+.property-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.property-panel-header h4 {
+  margin: 0;
+}
+
+.reset-draft-btn {
+  border: var(--border-container);
+  border-radius: 0.35rem;
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+  min-height: 1.9rem;
+  padding: 0.1rem 0.6rem;
 }
 
 .property-panel {

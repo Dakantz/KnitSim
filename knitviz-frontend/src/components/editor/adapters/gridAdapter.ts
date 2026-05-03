@@ -1,4 +1,5 @@
 import type { GlobalEditorState } from "@/stores/globalEditorStore";
+import { EditorType } from "@/stores/globalEditorStore";
 import { graphToSnapshot, type GraphSnapshot } from "@/knitgraph/snapshot";
 import { KnitGraph, KnitNodeType } from "@/knitgraph";
 import type { EditorAdapter } from "@/components/editor/adapters/adapterInterface";
@@ -13,6 +14,84 @@ import {
   MAX_GRID_ROWS,
 } from "@/components/editor/editor.constants";
 import type { GridCellState, GridEditorState } from "@/components/editor/editor.types";
+
+const toCssHexColor = (value: number | string): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  const normalized = Math.max(0, Math.min(0xffffff, Math.trunc(value)));
+  return `#${normalized.toString(16).padStart(6, "0")}`;
+};
+
+const toGridStitchType = (nodeType: KnitNodeType): string => {
+  if (nodeType === KnitNodeType.PURL) {
+    return "PURL";
+  }
+
+  if (nodeType === KnitNodeType.YARN_OVER) {
+    return "YARN_OVER";
+  }
+
+  return "KNIT";
+};
+
+const matrixFromSnapshot = (snapshot: GraphSnapshot): GridCellState[][] => {
+  if (snapshot.nodes.length === 0) {
+    return toMatrix({
+      rows: DEFAULT_GRID_ROWS,
+      cols: DEFAULT_GRID_COLS,
+      cells: [],
+    });
+  }
+
+  const byRow = new Map<number, typeof snapshot.nodes>();
+  for (const node of snapshot.nodes) {
+    const rowNodes = byRow.get(node.rowNumber) ?? [];
+    rowNodes.push(node);
+    byRow.set(node.rowNumber, rowNodes);
+  }
+
+  let sortedRows = [...byRow.keys()].sort((a, b) => a - b);
+  if (sortedRows.length > 0) {
+    const firstRowNodes = byRow.get(sortedRows[0]) ?? [];
+    const isCastOnRow = firstRowNodes.length > 0 && firstRowNodes.every((node) => node.type === KnitNodeType.CAST_ON);
+    if (isCastOnRow) {
+      sortedRows = sortedRows.slice(1);
+    }
+  }
+
+  if (sortedRows.length === 0) {
+    return toMatrix({
+      rows: DEFAULT_GRID_ROWS,
+      cols: DEFAULT_GRID_COLS,
+      cells: [],
+    });
+  }
+
+  const allCols = sortedRows.flatMap((rowNumber) => (byRow.get(rowNumber) ?? []).map((node) => node.colNumber));
+  const minCol = Math.min(...allCols);
+  const maxCol = Math.max(...allCols);
+  const cols = Math.max(1, maxCol - minCol + 1);
+  const rows = sortedRows.length;
+  const matrix = createGrid(rows, cols);
+
+  sortedRows.forEach((rowNumber, normalizedRow) => {
+    const rowNodes = byRow.get(rowNumber) ?? [];
+    rowNodes.forEach((node) => {
+      const normalizedCol = node.colNumber - minCol;
+      const cell = matrix[normalizedRow]?.[normalizedCol];
+      if (!cell) {
+        return;
+      }
+
+      cell.type = toGridStitchType(node.type);
+      cell.color = toCssHexColor(node.color);
+    });
+  });
+
+  return matrix;
+};
 
 const createCell = (row: number, col: number): GridCellState => ({
   id: `${row}-${col}`,
@@ -50,6 +129,13 @@ const toFlat = (matrix: GridCellState[][]): GridEditorState => ({
   cells: matrix.flat().map((cell) => ({ ...cell })),
 });
 
+const defaultMatrix = () =>
+  toMatrix({
+    rows: DEFAULT_GRID_ROWS,
+    cols: DEFAULT_GRID_COLS,
+    cells: [],
+  });
+
 const normalizeStitchType = (value: string): KnitNodeType => {
   const normalized = value.toUpperCase();
 
@@ -73,14 +159,21 @@ export const gridAdapter: EditorAdapter<GlobalEditorState, { matrix: GridCellSta
   fromStore(state: GlobalEditorState) {
     const gridState = state.editors.grid;
     const hasStoredCells = gridState.cells.length > 0;
-    const fallback = toMatrix({
-      rows: DEFAULT_GRID_ROWS,
-      cols: DEFAULT_GRID_COLS,
-      cells: [],
-    });
+
+    if (state.graph.nodes.length > 0 && (!hasStoredCells || state.sourceEditor !== EditorType.GRID)) {
+      return {
+        matrix: matrixFromSnapshot(state.graph),
+      };
+    }
+
+    if (hasStoredCells) {
+      return {
+        matrix: toMatrix(gridState),
+      };
+    }
 
     return {
-      matrix: hasStoredCells ? toMatrix(gridState) : fallback,
+      matrix: defaultMatrix(),
     };
   },
   createSnapshot(matrix: GridCellState[][]) {

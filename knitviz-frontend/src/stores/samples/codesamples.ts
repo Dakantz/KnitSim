@@ -15,6 +15,15 @@ for (let i = 0; i < 8; i++) {
   this.end_row()
   stitches -= 2
 }`,
+  "Ribbed Panel": `this.cast_on(28, 'flat')
+for (let row = 0; row < 14; row++) {
+  this.color(row % 2 === 0 ? '#3f6fcf' : '#6ea9ff')
+  for (let section = 0; section < 7; section++) {
+    const stitch = section % 2 === 0 ? 'knit' : 'purl'
+    this.knit(4, stitch)
+  }
+  this.end_row()
+}`
 };
 
 const sampleNames = Object.keys(codeSampleMap);

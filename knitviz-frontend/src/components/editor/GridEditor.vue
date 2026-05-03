@@ -17,6 +17,8 @@ import {
 } from "@/components/editor/editor.constants";
 import type { GridCellState } from "@/components/editor/editor.types";
 
+const STITCH_OPTIONS = ["KNIT", "PURL", "YARN_OVER"] as const;
+
 const emit = defineEmits<{
 	(e: "generate", payload: {
 		graph: GraphSnapshot;
@@ -35,7 +37,7 @@ const gridState = reactive({
 	cellMatrix: [] as GridCellState[][],
 });
 
-const stitchOptions = ["KNIT", "PURL", "YARN_OVER"];
+const stitchOptions = STITCH_OPTIONS;
 const sampleNames = sampleStore.names;
 const cellSize = 20;
 const cellGap = 2;
@@ -138,11 +140,11 @@ const svgWidth = computed(() => gridState.cols * (cellSize + cellGap) + cellGap)
 const svgHeight = computed(() => gridState.rows * (cellSize + cellGap) + cellGap);
 
 const getShortType = (type: string) => {
-	if (type === "YARN_OVER") {
-		return "YO";
-	}
+	const shortMap: Record<string, string> = {
+		YARN_OVER: "YO",
+	};
 
-	return type.slice(0, 1);
+	return shortMap[type] ?? type.slice(0, 1);
 };
 
 loadFromStore();

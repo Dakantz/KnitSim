@@ -4,9 +4,9 @@ import { RouterLink, RouterView } from "vue-router";
 
 <template>
   <div class="app">
-    <header>
-      <h1 class="heading" to="/">KnitSim</h1>
-      <div class="wrapper">
+    <header class="app-header">
+      <h1 class="heading">KnitSim</h1>
+      <div class="header-nav">
         <nav>
           <RouterLink to="/">Home</RouterLink>
           <RouterLink to="/viz">Knitting</RouterLink>
@@ -23,53 +23,44 @@ import { RouterLink, RouterView } from "vue-router";
 <style>
 body {
   font-family: "Roboto Mono", monospace;
-  margin: 0px;
+  margin: 0;
 }
+
 text {
   font-family: "Roboto Mono", monospace;
 }
 
-header {
+.app {
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   line-height: 1.5;
-  max-height: 100vh;
+  padding: 0.75rem 1rem;
 }
 
 .heading {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.header-nav {
   display: flex;
-  justify-items: center;
-  justify-content: center;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-.header {
-  display: flex;
-  place-items: start;
-  padding-right: calc(var(--section-gap) / 2);
-}
-
-.logo {
-  margin: 0 2rem 0 0;
-}
-
-header .wrapper {
-  display: flex;
-  place-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
-  padding-top: 1rem;
 }
 
 nav {
-  text-align: left;
-  margin-left: -1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
   font-size: 1rem;
-
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
 }
 
 .app-container {
@@ -77,5 +68,12 @@ nav {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

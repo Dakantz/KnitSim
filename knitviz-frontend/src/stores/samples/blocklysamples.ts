@@ -3,7 +3,24 @@ import { javascriptGenerator } from "blockly/javascript";
 import { colourBlend } from "@blockly/field-colour";
 import { defineStore } from "pinia";
 
-let isRegistered = false;
+type KnitBlocklyRegistryState = {
+  isRegistered: boolean;
+};
+
+const getRegistryState = (): KnitBlocklyRegistryState => {
+  const key = "__knitBlocklyRegistryState__";
+  const globalScope = globalThis as typeof globalThis & {
+    [key: string]: KnitBlocklyRegistryState | undefined;
+  };
+
+  if (!globalScope[key]) {
+    globalScope[key] = {
+      isRegistered: false,
+    };
+  }
+
+  return globalScope[key] as KnitBlocklyRegistryState;
+};
 
 type BlocklySample = {
   workspace: Record<string, unknown>;
@@ -130,6 +147,156 @@ const samplePresets = {
       },
     },
   },
+  laceBand: {
+    kind: "block",
+    type: "knit_cast_on",
+    fields: {
+      STITCHES: 20,
+      MODE: "FLAT",
+    },
+    next: {
+      block: {
+        type: "knit_repeat",
+        fields: {
+          TIMES: 6,
+        },
+        inputs: {
+          DO: {
+            block: {
+              type: "knit_row",
+              inputs: {
+                DO: {
+                  block: {
+                    type: "knit_knit_color",
+                    fields: {
+                      STITCHES: 5,
+                      COLOR: "#4e86ff",
+                    },
+                    next: {
+                      block: {
+                        type: "knit_purl_color",
+                        fields: {
+                          STITCHES: 5,
+                          COLOR: "#f39d64",
+                        },
+                        next: {
+                          block: {
+                            type: "knit_knit_color",
+                            fields: {
+                              STITCHES: 10,
+                              COLOR: "#7a5ce0",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  beanie: {
+    kind: "block",
+    type: "knit_cast_on",
+    fields: {
+      STITCHES: 24,
+      MODE: "ROUND",
+    },
+    next: {
+      block: {
+        type: "knit_repeat",
+        fields: {
+          TIMES: 6,
+        },
+        inputs: {
+          DO: {
+            block: {
+              type: "knit_row",
+              inputs: {
+                DO: {
+                  block: {
+                    type: "knit_knit_color",
+                    fields: {
+                      STITCHES: 24,
+                      COLOR: "#6b8afd",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        next: {
+          block: {
+            type: "knit_row",
+            inputs: {
+              DO: {
+                block: {
+                  type: "knit_knit_color",
+                  fields: {
+                    STITCHES: 22,
+                    COLOR: "#5f7de8",
+                  },
+                },
+              },
+            },
+            next: {
+              block: {
+                type: "knit_row",
+                inputs: {
+                  DO: {
+                    block: {
+                      type: "knit_knit_color",
+                      fields: {
+                        STITCHES: 20,
+                        COLOR: "#5670d1",
+                      },
+                    },
+                  },
+                },
+                next: {
+                  block: {
+                    type: "knit_row",
+                    inputs: {
+                      DO: {
+                        block: {
+                          type: "knit_knit_color",
+                          fields: {
+                            STITCHES: 18,
+                            COLOR: "#4f63ba",
+                          },
+                        },
+                      },
+                    },
+                    next: {
+                      block: {
+                        type: "knit_row",
+                        inputs: {
+                          DO: {
+                            block: {
+                              type: "knit_knit_color",
+                              fields: {
+                                STITCHES: 16,
+                                COLOR: "#4758a6",
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 const toWorkspaceBlock = (presetBlock: Record<string, unknown>, id: string) => {
@@ -159,6 +326,24 @@ const blocklySampleMap: Record<string, BlocklySample> = {
       blocks: {
         languageVersion: 0,
         blocks: [toWorkspaceBlock(samplePresets.stripedPattern, "striped-pattern")],
+      },
+    },
+  },
+  "Lace Band": {
+    presetBlock: samplePresets.laceBand,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.laceBand, "lace-band")],
+      },
+    },
+  },
+  "Beanie": {
+    presetBlock: samplePresets.beanie,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.beanie, "beanie")],
       },
     },
   },
@@ -274,16 +459,23 @@ const registerGenerators = () => {
 };
 
 export const ensureKnitBlocklyRegistered = () => {
-  if (isRegistered) {
+  const registry = getRegistryState();
+  if (registry.isRegistered) {
     return;
   }
 
-  colourBlend.installBlock({
-    javascript: javascriptGenerator,
-  });
-  Blockly.common.defineBlocks(blockDefinitions);
+  if (!Blockly.Blocks.colour_blend) {
+    colourBlend.installBlock({
+      javascript: javascriptGenerator,
+    });
+  }
+
+  if (!Blockly.Blocks.knit_cast_on) {
+    Blockly.common.defineBlocks(blockDefinitions);
+  }
+
   registerGenerators();
-  isRegistered = true;
+  registry.isRegistered = true;
 };
 
 export const knitToolbox = {
