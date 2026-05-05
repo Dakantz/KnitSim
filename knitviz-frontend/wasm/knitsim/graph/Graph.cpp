@@ -681,7 +681,7 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::getInstanceTransforms(Node nod
     }
   }
 
-  std::cout << node.id << " : " << front_node.id << std::endl;
+  // std::cout << node.id << " : " << front_node.id << std::endl;
 
   if(!found) {
     front_node = getDecreaseNode(node, is_round);
