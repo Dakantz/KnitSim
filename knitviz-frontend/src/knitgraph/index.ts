@@ -38,6 +38,7 @@ export class KnitNode {
   col_number: number = 0;
   static idCounter: number = 0;
   type: KnitNodeType;
+  yarn_over: boolean = false;
   yarnSpec: YarnSpec;
   start_of_row: boolean = false;
   side: KnitSide = KnitSide.RIGHT;
@@ -159,6 +160,9 @@ export class KnittingState {
           traversal = [{ dir: KnitEdgeDirection.COLUMN, in: true }];
         }
         if (procedal == KnitNodeType.YARN_OVER) {
+          // set as type for knit construction
+          // node.type = procedal
+          node.yarn_over = true;
           console.log("yarn over", node, this.previous_node);
           traversal = [
             { dir: KnitEdgeDirection.COLUMN, in: true },

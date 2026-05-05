@@ -25,6 +25,9 @@ namespace knitsim {
 
     std::map<uint32_t, RowResult> row_cache;
 
+    std::map<uint32_t, int32_t> yo_fix_map;
+    std::vector<uint32_t> row_length_list;
+
    public:
     KnitGraphC(GraphConfig &config, std::vector<Node> &nodes, std::vector<Edge> &edges) {
       this->config = config;
@@ -116,6 +119,7 @@ namespace knitsim {
     std::vector<Node>
     outgoingNodes(const Node &node, std::optional<KnitEdgeDirectionC> direction = std::nullopt) const {
       std::vector<Node> result;
+
       for (auto edge : outgoing(node, direction)) {
         if (direction == std::nullopt || edge.direction == direction) {
           if (node_outgoings.find(edge.from) != node_outgoings.end()) {
@@ -255,9 +259,17 @@ namespace knitsim {
       }
       return {};
     }
-    void computeKnitPaths();
+    void computeKnitPaths(float loop_width = 0.2, bool instancing = true);
+    std::vector<Eigen::Vector3f> constructCastOn(Node node, float loop_width = 0.2, bool instancing = true);
+    std::vector<Eigen::Vector3f> constructBindOff(Node node, float loop_width = 0.2);
+    Node getDecreaseNode(Node node, bool is_round = false);
+    std::vector<Node> checkForIncrease(Node frontnext_node);
+    std::vector<Eigen::Vector3f> constructIncrease(Node node, std::vector<Node> front_node, float loop_width, bool is_round = false);
     void computeHeuristicLayout();
     void calculateNormals();
     void recenter(Eigen::Vector3f offset = Eigen::Vector3f(0, 0, 0), float dampening = 0.1);
+    std::vector<Eigen::Vector3f> getInstanceTransforms(Node node, bool is_round, float loop_width = 0.2, uint32_t yo_fix = 0);
+    std::vector<Eigen::Vector3f> getExtendedKnits(Node node, bool is_round, float loop_width = 0.2, uint32_t yo_fix = 0);
+
   };
 } // namespace knitsim

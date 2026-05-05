@@ -32,12 +32,14 @@ EMSCRIPTEN_BINDINGS(wasm_module) {
       .field("col_number", &Node::col_number)
       .field("start_of_row", &Node::start_of_row)
       .field("type", &Node::type)
+      .field("yarn_over", &Node::yarn_over)
       .field("mode", &Node::mode)
       .field("side", &Node::side)
       .field("previous_node_id", &Node::previous_node_id)
       .field("position", &Node::position)
       .field("normal", &Node::normal)
-      .field("next_dir", &Node::next_dir);
+      .field("next_dir", &Node::next_dir)
+      .field("instanced", &Node::instanced);
 
   value_object<Edge>("Edge")
       .field("id", &Edge::id)
@@ -91,6 +93,7 @@ EMSCRIPTEN_BINDINGS(wasm_module) {
       .field("offset_purl", &GraphConfig::offset_purl)
       .field("offset_knit", &GraphConfig::offset_knit)
       .field("yarn_thickness", &GraphConfig::yarn_thickness)
+      .field("loop_width", &GraphConfig::loop_width)
       .field("up_vector", &GraphConfig::up_vector)
       .field("right_vector", &GraphConfig::right_vector);
 
@@ -125,7 +128,9 @@ EMSCRIPTEN_BINDINGS(wasm_module) {
       .function("computeKnitPaths", &KnitGraphC::computeKnitPaths)
       .function("computeHeuristicLayout", &KnitGraphC::computeHeuristicLayout)
       .function("calculateNormals", &KnitGraphC::calculateNormals)
-      .function("recenter", &KnitGraphC::recenter);
+      .function("recenter", &KnitGraphC::recenter)
+      .function("getInstanceTransforms", &KnitGraphC::getInstanceTransforms);
+    //   .function("constructTemplateKnit", &KnitGraphC::constructTemplateKnit);
 
   value_object<KnitSimConfig>("KnitSimConfig")
       .field("offset_scaler", &KnitSimConfig::offset_scaler)

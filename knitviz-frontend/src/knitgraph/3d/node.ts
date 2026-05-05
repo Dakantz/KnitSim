@@ -12,6 +12,7 @@ export class KnitNode3D extends KnitNode {
   mesh: THREE.Mesh;
   normal: THREE.Vector3 = new THREE.Vector3();
   force: THREE.Vector3 = new THREE.Vector3();
+  instanced: boolean = true;
 
   node_sphere_mesh: THREE.Mesh;
   normal_helper: THREE.ArrowHelper;
@@ -36,7 +37,7 @@ export class KnitNode3D extends KnitNode {
       helper.visible = viz.show_edges;
     }
     if (viz.changed_highlighted_node) {
-      this.node_sphere_mesh.material = viz.pool.sphere_material[this.side];
+      // this.node_sphere_mesh.material = viz.pool.sphere_material[this.side];
       // if (this.row_number_text) {
       //     viz.three_div.removeChild(this.row_number_text)
       //     this.row_number_text = null
