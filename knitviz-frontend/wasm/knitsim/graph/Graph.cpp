@@ -165,10 +165,15 @@ void knitsim::KnitGraphC::computeKnitPaths(float loop_width, bool instancing) {
   // determine if ROUND mode, default FLAT
   // doesn't change, enough to look once
   // ROUND mode never set, check if node is in one plane (first nodes of row always z=0)
-  if(nodes[0].mode == KnitModeC::ROUND || nodes[2].position[2] != 0  ) is_round = true;
+
+
+  unsigned int tmp = 2;
+  if(nodes.size()-1 < tmp) tmp = nodes.size()-1;
+  if(nodes[0].mode == KnitModeC::ROUND || nodes[tmp].position[2] != 0  ) is_round = true;
 
   // precompute offset knit position per node
   for (auto &node : nodes) {
+
     offset = 0;
     // apply type mod
     switch(node.type) {
@@ -370,31 +375,39 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::constructCastOn(Node node, flo
 
     // connection to next nodes cast on tail
     path.push_back(node.knit_position + (getNode(1).knit_position-node.knit_position)*0.5 - col_pos_mod*0.1 + node.normal*0.05);
+  } else {
+    return constructBindOff(node, loop_width);
   }
 
+
   // build in short yarn of node 0
-  Node cast_on_node = getNode(node.id + 1);
+  Node cast_on_node;
+  if(node.id + 1 <= nodes.size()) {
+    cast_on_node = getNode(node.id + 1);
 
-  while(!cast_on_node.has_above_node) {
+    while(!cast_on_node.has_above_node) {
 
-    if (cast_on_node.id == 1) {
-      prev_node = node;
-      row_pos_mod = cast_on_node.knit_position - node.knit_position;
-    } else {
-      prev_node = getNode(cast_on_node.id-1);
+      if (cast_on_node.id == 1) {
+        prev_node = node;
+        row_pos_mod = cast_on_node.knit_position - node.knit_position;
+      } else {
+        prev_node = getNode(cast_on_node.id-1);
+      }
+      row_pos_mod = cast_on_node.knit_position - prev_node.knit_position;
+      row_pos_mod.normalize();
+
+      // aux knot
+      path.push_back(cast_on_node.knit_position - cast_on_node.normal*0.05);
+      path.push_back(cast_on_node.knit_position + row_pos_mod*0.8*loop_width + col_pos_mod*0.1);
+      path.push_back(cast_on_node.knit_position + col_pos_mod*0.2 + cast_on_node.normal*0.1);
+      path.push_back(cast_on_node.knit_position - row_pos_mod*0.8*loop_width + col_pos_mod*0.1);
+      path.push_back(cast_on_node.knit_position + cast_on_node.normal*0.05);
+      path.push_back(cast_on_node.knit_position + (cast_on_node.knit_position - prev_node.knit_position)*0.5 - col_pos_mod*0.1 + cast_on_node.normal*0.05);
+
+      if(node.id + 1 <= nodes.size())
+        cast_on_node = getNode(cast_on_node.id + 1);
+      else break;
     }
-    row_pos_mod = cast_on_node.knit_position - prev_node.knit_position;
-    row_pos_mod.normalize();
-
-    // aux knot
-    path.push_back(cast_on_node.knit_position - cast_on_node.normal*0.05);
-    path.push_back(cast_on_node.knit_position + row_pos_mod*0.8*loop_width + col_pos_mod*0.1);
-    path.push_back(cast_on_node.knit_position + col_pos_mod*0.2 + cast_on_node.normal*0.1);
-    path.push_back(cast_on_node.knit_position - row_pos_mod*0.8*loop_width + col_pos_mod*0.1);
-    path.push_back(cast_on_node.knit_position + cast_on_node.normal*0.05);
-    path.push_back(cast_on_node.knit_position + (cast_on_node.knit_position - prev_node.knit_position)*0.5 - col_pos_mod*0.1 + cast_on_node.normal*0.05);
-
-    cast_on_node = getNode(cast_on_node.id + 1);
   }
 
   return path;
