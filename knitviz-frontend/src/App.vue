@@ -1,71 +1,80 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from "vue-router";
+import { ROUTE_PATHS } from "@/constants/routes";
 </script>
 
 <template>
-  <v-app>
-    <header>
+  <div class="app">
+    <header class="app-header">
       <h1 class="heading">KnitSim</h1>
-      <div class="wrapper">
+      <div class="header-nav">
         <nav>
           <RouterLink to="/">Home</RouterLink>
-          <RouterLink to="/viz">Vizualize Pattern</RouterLink>
-          <RouterLink to="/about">About</RouterLink>
+          <RouterLink :to="ROUTE_PATHS.VIZ">Knitting</RouterLink>
         </nav>
       </div>
     </header>
 
-    <RouterView />
-  </v-app>
+    <main class="app-container">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style>
 body {
   font-family: "Roboto Mono", monospace;
-  margin: 0px;
+  margin: 0;
 }
+
 text {
   font-family: "Roboto Mono", monospace;
 }
 
-header {
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   line-height: 1.5;
-  max-height: 100vh;
+  padding: 0.75rem 1rem;
 }
 
 .heading {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.header-nav {
   display: flex;
-  justify-items: center;
-  justify-content: center;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-.header {
-  display: flex;
-  place-items: center;
-  padding-right: calc(var(--section-gap) / 2);
-}
-
-.logo {
-  margin: 0 2rem 0 0;
-}
-
-header .wrapper {
-  display: flex;
-  place-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
 }
 
 nav {
-  text-align: left;
-  margin-left: -1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
   font-size: 1rem;
+}
 
-  padding: 1rem 0;
-  margin-top: 1rem;
+.app-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

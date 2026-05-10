@@ -1,0 +1,539 @@
+import * as Blockly from "blockly";
+import { javascriptGenerator } from "blockly/javascript";
+import { colourBlend } from "@blockly/field-colour";
+import { defineStore } from "pinia";
+
+type KnitBlocklyRegistryState = {
+  isRegistered: boolean;
+};
+
+const getRegistryState = (): KnitBlocklyRegistryState => {
+  const key = "__knitBlocklyRegistryState__";
+  const globalScope = globalThis as typeof globalThis & {
+    [key: string]: KnitBlocklyRegistryState | undefined;
+  };
+
+  if (!globalScope[key]) {
+    globalScope[key] = {
+      isRegistered: false,
+    };
+  }
+
+  return globalScope[key] as KnitBlocklyRegistryState;
+};
+
+type BlocklySample = {
+  workspace: Record<string, unknown>;
+  presetBlock: Record<string, unknown>;
+};
+
+const clone = <T>(value: T): T => {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const samplePresets = {
+  repeatWithKnit: {
+    kind: "block",
+    type: "knit_repeat",
+    fields: {
+      TIMES: 3,
+    },
+    inputs: {
+      DO: {
+        block: {
+          type: "knit_knit_color",
+          fields: {
+            STITCHES: 4,
+            COLOR: "#ff0000",
+          },
+        },
+      },
+    },
+  },
+  stripedPattern: {
+    kind: "block",
+    type: "knit_cast_on",
+    fields: {
+      STITCHES: 24,
+      MODE: "FLAT",
+    },
+    next: {
+      block: {
+        type: "knit_row",
+        inputs: {
+          DO: {
+            block: {
+              type: "knit_knit_color",
+              fields: {
+                STITCHES: 24,
+                COLOR: "#ffff00",
+              },
+            },
+          },
+        },
+        next: {
+          block: {
+            type: "knit_repeat",
+            fields: {
+              TIMES: 10,
+            },
+            inputs: {
+              DO: {
+                block: {
+                  type: "knit_row",
+                  inputs: {
+                    DO: {
+                      block: {
+                        type: "knit_knit_color",
+                        fields: {
+                          STITCHES: 6,
+                          COLOR: "#0000ff",
+                        },
+                        next: {
+                          block: {
+                            type: "knit_purl_color",
+                            fields: {
+                              STITCHES: 4,
+                              COLOR: "#ff0000",
+                            },
+                            next: {
+                              block: {
+                                type: "knit_knit_color",
+                                fields: {
+                                  STITCHES: 4,
+                                  COLOR: "#0000ff",
+                                },
+                                next: {
+                                  block: {
+                                    type: "knit_purl_color",
+                                    fields: {
+                                      STITCHES: 4,
+                                      COLOR: "#ff0000",
+                                    },
+                                    next: {
+                                      block: {
+                                        type: "knit_knit_color",
+                                        fields: {
+                                          STITCHES: 6,
+                                          COLOR: "#0000ff",
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            next: {
+              block: {
+                type: "knit_row",
+                inputs: {
+                  DO: {
+                    block: {
+                      type: "knit_knit_color",
+                      fields: {
+                        STITCHES: 24,
+                        COLOR: "#ffff00",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  laceBand: {
+    kind: "block",
+    type: "knit_cast_on",
+    fields: {
+      STITCHES: 20,
+      MODE: "FLAT",
+    },
+    next: {
+      block: {
+        type: "knit_repeat",
+        fields: {
+          TIMES: 6,
+        },
+        inputs: {
+          DO: {
+            block: {
+              type: "knit_row",
+              inputs: {
+                DO: {
+                  block: {
+                    type: "knit_knit_color",
+                    fields: {
+                      STITCHES: 5,
+                      COLOR: "#4e86ff",
+                    },
+                    next: {
+                      block: {
+                        type: "knit_purl_color",
+                        fields: {
+                          STITCHES: 5,
+                          COLOR: "#f39d64",
+                        },
+                        next: {
+                          block: {
+                            type: "knit_knit_color",
+                            fields: {
+                              STITCHES: 10,
+                              COLOR: "#7a5ce0",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  beanie: {
+    kind: "block",
+    type: "knit_cast_on",
+    fields: {
+      STITCHES: 24,
+      MODE: "ROUND",
+    },
+    next: {
+      block: {
+        type: "knit_repeat",
+        fields: {
+          TIMES: 6,
+        },
+        inputs: {
+          DO: {
+            block: {
+              type: "knit_row",
+              inputs: {
+                DO: {
+                  block: {
+                    type: "knit_knit_color",
+                    fields: {
+                      STITCHES: 24,
+                      COLOR: "#6b8afd",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        next: {
+          block: {
+            type: "knit_row",
+            inputs: {
+              DO: {
+                block: {
+                  type: "knit_knit_color",
+                  fields: {
+                    STITCHES: 22,
+                    COLOR: "#5f7de8",
+                  },
+                },
+              },
+            },
+            next: {
+              block: {
+                type: "knit_row",
+                inputs: {
+                  DO: {
+                    block: {
+                      type: "knit_knit_color",
+                      fields: {
+                        STITCHES: 20,
+                        COLOR: "#5670d1",
+                      },
+                    },
+                  },
+                },
+                next: {
+                  block: {
+                    type: "knit_row",
+                    inputs: {
+                      DO: {
+                        block: {
+                          type: "knit_knit_color",
+                          fields: {
+                            STITCHES: 18,
+                            COLOR: "#4f63ba",
+                          },
+                        },
+                      },
+                    },
+                    next: {
+                      block: {
+                        type: "knit_row",
+                        inputs: {
+                          DO: {
+                            block: {
+                              type: "knit_knit_color",
+                              fields: {
+                                STITCHES: 16,
+                                COLOR: "#4758a6",
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+const toWorkspaceBlock = (presetBlock: Record<string, unknown>, id: string) => {
+  const { ...block } = clone(presetBlock) as Record<string, unknown>;
+
+  return {
+    ...block,
+    id,
+    x: 22,
+    y: 24,
+  };
+};
+
+const blocklySampleMap: Record<string, BlocklySample> = {
+  "Repeat With Knit": {
+    presetBlock: samplePresets.repeatWithKnit,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.repeatWithKnit, "repeat-with-knit")],
+      },
+    },
+  },
+  "Striped Pattern": {
+    presetBlock: samplePresets.stripedPattern,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.stripedPattern, "striped-pattern")],
+      },
+    },
+  },
+  "Lace Band": {
+    presetBlock: samplePresets.laceBand,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.laceBand, "lace-band")],
+      },
+    },
+  },
+  "Beanie": {
+    presetBlock: samplePresets.beanie,
+    workspace: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [toWorkspaceBlock(samplePresets.beanie, "beanie")],
+      },
+    },
+  },
+};
+
+const blockDefinitions = Blockly.common.createBlockDefinitionsFromJsonArray([
+  {
+    type: "knit_cast_on",
+    message0: "Cast on %1 stitches (%2)",
+    args0: [
+      {
+        type: "field_number",
+        name: "STITCHES",
+        value: 24,
+        min: 1,
+      },
+      {
+        type: "field_dropdown",
+        name: "MODE",
+        options: [
+          ["Flat", "FLAT"],
+          ["Round", "ROUND"],
+        ],
+      },
+    ],
+    nextStatement: null,
+    colour: 230,
+  },
+  {
+    type: "knit_row",
+    message0: "Row",
+    message1: "do %1",
+    message2: "then end row",
+    args1: [{ type: "input_statement", name: "DO" }],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 210,
+  },
+  {
+    type: "knit_repeat",
+    message0: "Repeat %1 times",
+    message1: "do %1",
+    args0: [{ type: "field_number", name: "TIMES", value: 3, min: 1 }],
+    args1: [{ type: "input_statement", name: "DO" }],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 120,
+  },
+  {
+    type: "knit_knit_color",
+    message0: "Knit %1 stitches in %2",
+    args0: [
+      { type: "field_number", name: "STITCHES", value: 4, min: 1 },
+      { type: "field_colour", name: "COLOR", colour: "#3366ff" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 185,
+  },
+  {
+    type: "knit_purl_color",
+    message0: "Purl %1 stitches in %2",
+    args0: [
+      { type: "field_number", name: "STITCHES", value: 4, min: 1 },
+      { type: "field_colour", name: "COLOR", colour: "#7ca9ff" },
+    ],
+    previousStatement: null,
+    nextStatement: null,
+    colour: 185,
+  },
+  {
+    type: "knit_end_row",
+    message0: "End row",
+    previousStatement: null,
+    nextStatement: null,
+    colour: 160,
+  },
+]);
+
+const registerGenerators = () => {
+  javascriptGenerator.forBlock.knit_cast_on = function (block) {
+    const stitches = block.getFieldValue("STITCHES");
+    const mode = block.getFieldValue("MODE");
+    return `state.cast_on(${stitches}, '${mode === "ROUND" ? "round" : "flat"}')\n`;
+  };
+
+  javascriptGenerator.forBlock.knit_knit_color = function (block) {
+    const stitches = block.getFieldValue("STITCHES");
+    const color = block.getFieldValue("COLOR");
+    return `state.color('${color}', 1)\nstate.knit(${stitches}, 'KNIT')\n`;
+  };
+
+  javascriptGenerator.forBlock.knit_purl_color = function (block) {
+    const stitches = block.getFieldValue("STITCHES");
+    const color = block.getFieldValue("COLOR");
+    return `state.color('${color}', 1)\nstate.knit(${stitches}, 'PURL')\n`;
+  };
+
+  javascriptGenerator.forBlock.knit_row = function (block) {
+    const doCode = javascriptGenerator.statementToCode(block, "DO");
+    return `${doCode}state.end_row()\n`;
+  };
+
+  javascriptGenerator.forBlock.knit_repeat = function (block) {
+    const times = block.getFieldValue("TIMES");
+    const doCode = javascriptGenerator.statementToCode(block, "DO");
+    return `for (let i = 0; i < ${times}; i++) {\n${doCode}}\n`;
+  };
+
+  javascriptGenerator.forBlock.knit_end_row = function () {
+    return "state.end_row()\n";
+  };
+};
+
+export const ensureKnitBlocklyRegistered = () => {
+  const registry = getRegistryState();
+  if (registry.isRegistered) {
+    return;
+  }
+
+  if (!Blockly.Blocks.colour_blend) {
+    colourBlend.installBlock({
+      javascript: javascriptGenerator,
+    });
+  }
+
+  if (!Blockly.Blocks.knit_cast_on) {
+    Blockly.common.defineBlocks(blockDefinitions);
+  }
+
+  registerGenerators();
+  registry.isRegistered = true;
+};
+
+export const knitToolbox = {
+  kind: "categoryToolbox",
+  contents: [
+    {
+      kind: "category",
+      name: "Setup",
+      contents: [{ kind: "block", type: "knit_cast_on" }],
+    },
+    {
+      kind: "category",
+      name: "Rows",
+      contents: [
+        { kind: "block", type: "knit_row" },
+        { kind: "block", type: "knit_repeat" },
+        { kind: "block", type: "knit_knit_color" },
+        { kind: "block", type: "knit_purl_color" },
+        { kind: "block", type: "knit_end_row" },
+      ],
+    },
+    {
+      kind: "category",
+      name: "Presets",
+      contents: Object.values(blocklySampleMap).map((sample) => clone(sample.presetBlock)),
+    },
+  ],
+} as any;
+
+export const workspaceToKnitCode = (workspace: any) => {
+  const code = javascriptGenerator.workspaceToCode(workspace);
+  return code.replace(/state\./g, "this.");
+};
+
+export const useBlocklySamplesStore = defineStore("blocklySamples", () => {
+  const names = Object.keys(blocklySampleMap);
+
+  const getWorkspaceJson = (name: string) => {
+    const sample = blocklySampleMap[name];
+    if (!sample) {
+      return "";
+    }
+
+    return JSON.stringify(sample.workspace);
+  };
+
+  return {
+    samples: blocklySampleMap,
+    names,
+    getWorkspaceJson,
+  };
+});

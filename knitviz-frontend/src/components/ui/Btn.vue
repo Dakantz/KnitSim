@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, reactive, computed, onMounted, type ModelRef, defineEmits } from "vue";
+import { ref, watch, reactive, computed, onMounted, type ModelRef } from "vue";
 const state = reactive({
   clicked: false,
 });
@@ -17,11 +17,20 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
 });
 const emit = defineEmits<{
   (e: "click", evt: MouseEvent): void;
 }>();
 function update(evt) {
+  if (props.disabled) {
+    evt.preventDefault();
+    return;
+  }
+
   state.clicked = true;
   setTimeout(() => {
     state.clicked = false;
@@ -38,8 +47,13 @@ function update(evt) {
     <button
       v-if="props.toggleable"
       class="clickable_container"
+      :disabled="props.disabled"
       @click="update"
-      :class="{ clickable_container_clicked: state.clicked, clickable_selected: model }"
+      :class="{
+        clickable_container_clicked: state.clicked,
+        clickable_selected: model,
+        clickable_container_disabled: props.disabled,
+      }"
     >
       <slot></slot>
     </button>
@@ -48,7 +62,11 @@ function update(evt) {
       <label
         class="clickable_container"
         for="btnControl"
-        :class="{ clickable_container_clicked: state.clicked, clickable_selected: model }"
+        :class="{
+          clickable_container_clicked: state.clicked,
+          clickable_selected: model,
+          clickable_container_disabled: props.disabled,
+        }"
       >
         <slot></slot>
       </label>
@@ -93,11 +111,15 @@ function update(evt) {
   background-color: #d5e9ed;
 }
 
+.clickable_container_disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .wrapper_clickable {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2px;
 }
 #btnControl {
   display: none;

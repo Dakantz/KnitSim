@@ -52,7 +52,7 @@ export class KnitNode {
   ) {
     this.yarnSpec = yarnSpec;
     this.type = type;
-    this.id = id || KnitNode.idCounter++;
+    this.id = id ?? KnitNode.idCounter++;
     this.start_of_row = start_row;
     this.side = side;
   }

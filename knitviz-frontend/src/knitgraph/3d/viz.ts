@@ -10,7 +10,6 @@ import KnitSimLib from "../sim/knitsim-lib";
 import { toRaw } from "vue";
 import { KnitGraph3D } from "./graph";
 import type { KnitNode3D } from "./node";
-const outputFilePath: string = 'output.txt';
 // 3D circle packing based upon https://observablehq.com/@analyzer2004/3d-circle-packing
 // expanded with Topic links and fixed height of nodes (TODO)
 export let KnitSimModule: MainModule = null;
@@ -28,6 +27,7 @@ export enum PatternViz3DEvents {
   mouseover = "mouseover",
   mouseout = "mouseout",
   render = "render",
+  paint = "paint",
 }
 export class PatternViz3D {
   width = 1000;
@@ -72,11 +72,26 @@ export class PatternViz3D {
   show_edges = false;
   show_forces = true;
   show_nodes = true;
+  deferCompute = false;
+  controls: OrbitControls | null = null;
+
+  isDrawingMode = false;
+  activeDrawColor = "#000000";
+  isPainting = false;
+  hovered_node: KnitNode3D | null = null;
+
+  private pointerMoveHandler = (event: MouseEvent) => this.onPointerMove(event);
+  private clickHandler = (event: MouseEvent) => this.updateClickedNode(event);
+  private mouseDownHandler = (event: MouseEvent) => this.onMouseDown(event);
+  private mouseUpHandler = (event: MouseEvent) => this.onMouseUp(event);
+
   constructor(
     public query_renderer: string,
     graph: KnitGraph,
+    options: { deferCompute?: boolean } = {},
   ) {
     this.graph = new KnitGraph3D(graph);
+    this.deferCompute = options.deferCompute ?? false;
     this.init();
   }
   stepSim(time: number) {
@@ -85,7 +100,9 @@ export class PatternViz3D {
       const node = this.graph.nodes[node_id];
       let sphere_matrix = new THREE.Matrix4().makeTranslation(node.position.x, node.position.y, node.position.z)
       this.inst_nodemesh.setMatrixAt(node.id, sphere_matrix);
-      this.updateInstancedMeshes(node);
+      if (node.instanced) {
+        this.updateInstancedMeshes(node);
+      }
       this.inst_nodemesh.instanceMatrix.needsUpdate = true;
     }
 
@@ -101,8 +118,7 @@ export class PatternViz3D {
       yarn_thickness: this.knit_dimensions.yarn_thickness,
       loop_width: this.knit_dimensions.loop_width,
       up_vector: new KnitSimModule.Vector3f(1, 0, 0),
-      right_vector: new KnitSimModule.Vector3f(0, 0, 1),
-      instancing: true // change here to turn on/off instancing
+      right_vector: new KnitSimModule.Vector3f(0, 0, 1)
     });
   }
   private initPool() {
@@ -188,18 +204,28 @@ export class PatternViz3D {
 
   }
 
-  // returns true if increase, false if not
   updateInstancedMeshes(node : KnitNode3D) {
 
     let knit_matrix = new THREE.Matrix4();
     let tube_matrix = new THREE.Matrix4();
-    // yarn matrix transform
-    // let transform_list = this.graph.graph_wasm.getInstanceTransforms(this.graph.graph_wasm.getNode(node.id));
+    
     let transform_list = this.graph.graph_wasm.knitPath(node.id);
     let transform_array = new Array(transform_list.size()).fill(0).map((_, id) => {
       let vec = transform_list.get(id);
       return new THREE.Vector3(vec.x, vec.y, vec.z);
     });
+
+    // Some stitches (e.g., cast-on/degenerated paths) can yield incomplete paths.
+    // Skip instanced transform updates for those nodes instead.
+    if (!transform_array || transform_array.length < 5) {
+      return null;
+    }
+
+    for (const vec of transform_array) {
+      if (!vec) {
+        return null;
+      }
+    }
 
     knit_matrix.multiply(new THREE.Matrix4().makeTranslation(transform_array[0]));
 
@@ -402,12 +428,11 @@ export class PatternViz3D {
         node.mesh = mesh;
         this.scene.add(mesh);
 
-        this.pool.yarn_material[node.yarnSpec.color] = material;
-        id++;
-      }
-
-
+      this.pool.yarn_material[node.yarnSpec.color] = material;
+      id++;
     }
+  }
+
     // this.inst_nodemesh.instanceColor.needsUpdate = true;
     this.inst_nodemesh.instanceMatrix.needsUpdate = true;
 
@@ -415,11 +440,16 @@ export class PatternViz3D {
     // this.inst_nodemesh.getColorAt(25, color);
     // console.log("Color at id ", 25, " ", color);
   }
+
   init() {
-    d3.select(this.query_renderer).selectAll("*").remove();
+    d3.select(this.query_renderer).selectAll(".threed_graph").remove();
     this.three_div = d3.select(this.query_renderer).append("div").attr("class", "threed_graph").node();
-    this.three_div.addEventListener("mousemove", (event) => this.onPointerMove(event));
-    this.three_div.addEventListener("click", (event) => this.updateClickedNode(event));
+
+    this.three_div.addEventListener("mousemove", this.pointerMoveHandler);
+    this.three_div.addEventListener("click", this.clickHandler);
+    this.three_div.addEventListener("mousedown", this.mouseDownHandler);
+    this.three_div.addEventListener("mouseup", this.mouseUpHandler);
+    
     this.width = this.three_div.clientWidth;
     this.height = this.three_div.clientHeight;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -429,7 +459,8 @@ export class PatternViz3D {
 
     this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.2, 1500);
     this.camera.aspect = this.width / this.height;
-    this.camera.position.set(35, 35, 0);
+
+    this.camera.position.set(0, 0, -35);
     this.camera.updateProjectionMatrix();
 
     this.scene = new THREE.Scene();
@@ -445,8 +476,10 @@ export class PatternViz3D {
     this.gui.add(this, "show_nodes", this.show_nodes);
     this.gui.add(this, "show_forces", this.show_forces);
 
-
-    this.computeKnits();
+    this.initPool();
+    if (!this.deferCompute) {
+      this.computeKnits();
+    }
 
     const controls = new OrbitControls(this.camera, this.renderer.domElement);
     controls.screenSpacePanning = true;
@@ -462,13 +495,14 @@ export class PatternViz3D {
       this.renderer.render(this.scene, this.camera);
     });
     controls.update();
+    this.controls = controls;
     this.renderer.render(this.scene, this.camera);
 
     // let counter = 0;
     // let sum = 0;
 
     (this.renderer as any).setAnimationLoop(() => {
-      controls.update();
+      this.controls?.update();
       // let startTime = performance.now();
       this.render();
       // let endTime = performance.now();
@@ -485,6 +519,10 @@ export class PatternViz3D {
     });
   }
   render() {
+    if (!this.renderer || !this.scene || !this.camera || !this.three_div) {
+      return;
+    }
+
     for (const node_id in this.graph.nodes) {
       const node = this.graph.nodes[node_id];
       node.preRender(this);
@@ -494,7 +532,7 @@ export class PatternViz3D {
     }
     let row_nodes = [];
     let positions: Record<number, THREE.Vector2Like> = {};
-    if (this.highlighted_node) {
+    if (this.highlighted_node && this.graph.graph_wasm) {
       let node_c = this.graph.graph_wasm.getNode(this.highlighted_node.id);
       let row = this.graph.graph_wasm.row(node_c);
       row_nodes = new Array(row.nodes.size()).fill(0).map((_, idx) => {
@@ -573,7 +611,10 @@ export class PatternViz3D {
     this.renderer.render(this.scene, this.camera);
   }
 
-  highlightNode(node: KnitNode3D) {
+  highlightNode(node: KnitNode3D | null) {
+    if (!this.inst_nodemesh) {
+      return;
+    }
     if (node.id != this.highlighted_node?.id) {
       this.changed_highlighted_node = true;
 
@@ -582,9 +623,11 @@ export class PatternViz3D {
       }
     }
     if (this.highlighted_node) {
-      // un-highlight previous node
+      // un-highlight previous node, this.hightlighted_node is the previous selected node, when an new node (parameter: node) is selected
       // this.highlighted_node.node_sphere_mesh.material = this.pool.sphere_material[this.highlighted_node.side];
-      this.inst_nodemesh.setColorAt(this.highlighted_node.id, this.pool.sphere_material[this.highlighted_node.side].color);
+      var previousColor = this.pool.sphere_material[this.highlighted_node.side].color;
+      var previousSelectedNodeId = this.highlighted_node.id;
+      this.inst_nodemesh.setColorAt(previousSelectedNodeId, previousColor);
       this.inst_nodemesh.instanceColor.needsUpdate = true;
       // this.highlighted_node.node_sphere_mesh.visible = this.show_nodes;
       this.inst_nodemesh.visible = this.show_nodes;
@@ -594,7 +637,7 @@ export class PatternViz3D {
       this.highlighted_node = node;
       // node.node_sphere_mesh.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
       this.inst_nodemesh.setColorAt(node.id, new THREE.Color(0xff00ff));
-      this.inst_nodemesh.instanceColor.needsUpdate = true;
+      this.inst_nodemesh.instanceColor.needsUpdate = true; // dirty bit
       this.inst_nodemesh.visible = true;
       // node.node_sphere_mesh.visible = true;
     }
@@ -602,47 +645,114 @@ export class PatternViz3D {
   }
 
   pointer = new THREE.Vector2();
-  onPointerMove(event: MouseEvent) {
-    if (!this.camera) {
-      return;
+  private pickNode(event: MouseEvent): KnitNode3D | null {
+    if (!this.camera || !this.renderer) {
+      return null;
     }
-    // calculate pointer position in normalized device coordinates
-    // (-1 to +1) for both components
-    if (this.three_div) {
-      let bounds = this.renderer.domElement.getBoundingClientRect();
-      this.pointer.x = ((event.clientX - bounds.x) / bounds.width) * 2 - 1;
-      this.pointer.y = -((event.clientY - bounds.y) / bounds.height) * 2 + 1;
-      // console.log("Pointer", this.pointer, event.clientX, event.clientY, bounds.x, bounds.y, bounds.width, bounds.height)
-    }
-    // calculate objects intersecting the picking ray
+
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - bounds.x) / bounds.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - bounds.y) / bounds.height) * 2 + 1;
+
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.scene.children);
-    if (intersects.length > 0) {
-      // console.log("intersect: ", intersects);
-      // const intersect = intersects.find(
-      //   (intersect) => intersect.object.name != undefined && intersect.object.name.length > 0,
-      // );
-      // console.log(intersects.length);
-      const intersect = intersects.find(
-        (intersect) => intersect.object.name != undefined && intersect.instanceId != undefined,
-      );
-      if (!intersect) {
-        return;
-      }
-      // console.log("inst_id: ", intersect.instanceId);
-      // const id = parseInt(intersect.object.name);
-      const node = this.graph.nodes[intersect.instanceId];
+    if (intersects.length === 0) {
+      return null;
+    }
 
-      this.highlightNode(node);
-      for (const listener of this.eventListeners.mouseover) {
-        listener(node);
+    const intersect = intersects.find(
+      (entry) => entry.object.name != undefined && entry.instanceId != undefined,
+    );
+    if (!intersect || intersect.instanceId === undefined) {
+      return null;
+    }
+
+    return this.graph.nodes[intersect.instanceId] ?? null;
+  }
+
+  onPointerMove(event: MouseEvent) {
+    const node = this.pickNode(event);
+
+    if (this.hovered_node && (!node || node.id !== this.hovered_node.id)) {
+      for (const listener of this.eventListeners.mouseout) {
+        listener(this.hovered_node);
       }
     }
+
+    this.hovered_node = node;
+
+    if (!node) {
+      return;
+    }
+
+    if (this.isDrawingMode && this.isPainting) {
+      this.paintNode(node);
+      return;
+    }
+
+    for (const listener of this.eventListeners.mouseover) {
+      listener(node);
+    }
   }
-  updateClickedNode(event: MouseEvent) {
+  
+  paintNode(node: KnitNode3D) {
+    if (!node || !node.mesh) {
+      return;
+    }
+
+    const colorValue = parseInt(this.activeDrawColor.replace("#", ""), 16);
+    node.yarnSpec.color = this.activeDrawColor;
+
+    const material =
+      this.pool.yarn_material[this.activeDrawColor] ||
+      new THREE.MeshBasicMaterial({ color: colorValue, side: THREE.DoubleSide });
+    
+    node.material = material;
+    node.mesh.material = material;
+    this.pool.yarn_material[this.activeDrawColor] = material;
+
+    for (const listener of this.eventListeners.paint) {
+      listener(node);
+    }
+
+    this.render();
+  }
+
+  onMouseDown(event: MouseEvent) {
+    if (!this.isDrawingMode) {
+      return;
+    }
+
+    this.isPainting = true;
     this.onPointerMove(event);
   }
-  eventListeners: Record<PatternViz3DEvents, ((node: KnitNode3D) => void)[]> = Object.keys(PatternViz3DEvents)
+
+  onMouseUp(event: MouseEvent) {
+    this.isPainting = false;
+  }
+
+  setDrawingMode(enabled: boolean) {
+    this.isDrawingMode = enabled;
+    this.isPainting = false;
+
+    if (this.controls) {
+      this.controls.enabled = !enabled;
+    }
+  }
+
+  setDrawingColor(hexColor: string) {
+    this.activeDrawColor = hexColor;
+  }
+  
+  updateClickedNode(event: MouseEvent) {
+    const clickedNode = this.pickNode(event);
+    this.highlightNode(clickedNode);
+
+    for (const listener of this.eventListeners.click) {
+      listener(clickedNode);
+    }
+  }
+  eventListeners: Record<PatternViz3DEvents, ((node: KnitNode3D | null) => void)[]> = Object.keys(PatternViz3DEvents)
     .map((event) => {
       return {
         [event]: [],
@@ -650,8 +760,8 @@ export class PatternViz3D {
     })
     .reduce((acc, curr) => {
       return { ...acc, ...curr };
-    }, {}) as Record<PatternViz3DEvents, ((node: KnitNode3D) => void)[]>;
-  on(event: PatternViz3DEvents, callback: (node: KnitNode3D) => void) {
+    }, {}) as Record<PatternViz3DEvents, ((node: KnitNode3D | null) => void)[]>;
+  on(event: PatternViz3DEvents, callback: (node: KnitNode3D | null) => void) {
     switch (event) {
       case PatternViz3DEvents.click:
         this.eventListeners.click.push(callback);
@@ -665,16 +775,58 @@ export class PatternViz3D {
       case PatternViz3DEvents.render:
         this.eventListeners.render.push(callback);
         break;
+      case PatternViz3DEvents.paint:
+        this.eventListeners.paint.push(callback);
+        break;
       default:
         throw new Error(`Event ${event} not supported`);
     }
   }
+  resize() {
+    if (!this.three_div || !this.renderer || !this.camera) {
+      return;
+    }
+
+    const nextWidth = this.three_div.clientWidth;
+    const nextHeight = this.three_div.clientHeight;
+    if (!nextWidth || !nextHeight) {
+      return;
+    }
+
+    this.width = nextWidth;
+    this.height = nextHeight;
+    this.camera.aspect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.width, this.height);
+    this.render();
+  }
   dispose() {
-    this.three_div.removeEventListener("mousemove", (event) => this.onPointerMove(event));
-    this.three_div.removeEventListener("click", (event) => this.updateClickedNode(event));
-    this.three_div.remove();
-    this.scene.clear();
-    this.gui.destroy();
+    if (this.renderer && this.renderer instanceof THREE.WebGLRenderer) {
+      this.renderer.setAnimationLoop(null);
+    }
+    if (this.controls) {
+      this.controls.dispose();
+      this.controls = null;
+    }
+    if (this.three_div) {
+      this.three_div.removeEventListener("mousemove", this.pointerMoveHandler);
+      this.three_div.removeEventListener("click", this.clickHandler);
+      this.three_div.removeEventListener("mousedown", this.mouseDownHandler);
+      this.three_div.removeEventListener("mouseup", this.mouseUpHandler);
+      this.three_div.remove();
+      this.three_div = null;
+    }
+    this.hovered_node = null;
+    if (this.scene) {
+      this.scene.clear();
+    }
+    if (this.gui) {
+      this.gui.destroy();
+      this.gui = null;
+    }
+    if (this.renderer && this.renderer instanceof THREE.WebGLRenderer) {
+      this.renderer.dispose();
+    }
     this.graph.dispose();
   }
 }

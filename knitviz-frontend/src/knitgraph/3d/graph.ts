@@ -25,6 +25,27 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
       let node = graph.nodes[key];
       this.nodes[node.id] = new KnitNode3D(toRaw(node), new THREE.Vector3());
     }
+    
+    this.assertIntegrity();
+  }
+
+  private assertIntegrity() {
+    const nodeIds = new Set<number>();
+    for (const key in this.nodes) {
+      const node = this.nodes[key];
+      if (nodeIds.has(node.id)) {
+        throw new Error(`Invalid graph: duplicate node id ${node.id}`);
+      }
+      nodeIds.add(node.id);
+    }
+
+    for (const edge of this.edges) {
+      if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) {
+        throw new Error(
+          `Invalid graph: edge ${edge.from} -> ${edge.to} references missing node(s)`,
+        );
+      }
+    }
   }
   step(time: number) {
     if (!this.graph_wasm) {
@@ -33,7 +54,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
     console.log("Stepping sim", time, this.graph_wasm, this.graph_wasm.isDeleted());
     let accumulated_movement = this.graph_sim.step(time, 0.1, 0.2);
     console.log("Accumulated movement", accumulated_movement);
-    this.graph_wasm.computeKnitPaths(this.cfg.loop_width, this.cfg.instancing);
+    this.graph_wasm.computeKnitPaths(this.cfg.loop_width, true);
     this.syncGraphWASM();
     return accumulated_movement;
   }
@@ -100,6 +121,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
     }
   }
   initGraphWASM(cfg: GraphConfig) {
+    this.assertIntegrity();
     this.cfg = cfg;
     let node_vec = new KnitSimModule.NodeVector();
     let edge_vec = new KnitSimModule.EdgeVector();
@@ -111,7 +133,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
         row_number: node.row_number,
         col_number: node.col_number,
         start_of_row: node.start_of_row,
-        previous_node_id: node.previous_node?.id || -1,
+        previous_node_id: node.previous_node?.id ?? node.id,
         type: KnitSimModule.KnitNodeTypeC[`KnitNodeTypeC_${node.type.toUpperCase()}`],
         yarn_over: node.yarn_over,
         mode: KnitSimModule.KnitModeC.KnitModeC_FLAT,
@@ -149,7 +171,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
     let time = Date.now();
     this.graph_wasm.computeHeuristicLayout();
     this.graph_wasm.calculateNormals();
-    this.graph_wasm.computeKnitPaths(this.cfg.loop_width, this.cfg.instancing);
+    this.graph_wasm.computeKnitPaths(this.cfg.loop_width, true);
     this.syncGraphWASM();
     console.log("Computed heuristics in", Date.now() - time);
   }

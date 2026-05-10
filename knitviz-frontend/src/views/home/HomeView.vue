@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Btn from "@/components/ui/Btn.vue";
+import { ROUTE_PATHS } from "@/constants/routes";
 </script>
 
 <template>
@@ -7,7 +8,7 @@ import Btn from "@/components/ui/Btn.vue";
     <div>
       <!-- <h1>KnitViz</h1> -->
       <h2>Visualize your knitting patterns in 3D!</h2>
-      <Btn @click="$router.push('/viz')" :btn_height="'3rem'">Start Visualizing</Btn>
+      <Btn @click="$router.push(ROUTE_PATHS.VIZ)" :btn_height="'3rem'">Start Visualizing</Btn>
       <div>
         A few words of caution: this is an early prototype, and the 3D visualization is still a work in progress.
         <ul>
@@ -15,7 +16,7 @@ import Btn from "@/components/ui/Btn.vue";
           <li>It is not yet fully tested, so there may be bugs.</li>
           <li>You may need to reload after running one simulation/run.</li>
         </ul>
-        >Start anyways? <Btn @click="$router.push('/viz')" :btn_height="'1rem'">Yes</Btn>
+        >Start anyways? <Btn @click="$router.push(ROUTE_PATHS.VIZ)" :btn_height="'1rem'">Yes</Btn>
       </div>
     </div>
   </main>
