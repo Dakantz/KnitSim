@@ -5,24 +5,6 @@ import { colourBlend } from "@blockly/field-colour";
 let isRegistered = false;
 
 const patternPresets = {
-  repeatWithKnit: {
-    kind: "block",
-    type: "knit_repeat",
-    fields: {
-      TIMES: 3,
-    },
-    inputs: {
-      DO: {
-        block: {
-          type: "knit_knit_color",
-          fields: {
-            STITCHES: 4,
-            COLOR: "#ff0000",
-          },
-        },
-      },
-    },
-  },
   stripedPattern: {
     kind: "block",
     type: "knit_row",
@@ -262,7 +244,7 @@ export const knitToolbox = {
     {
       kind: "category",
       name: "Presets",
-      contents: [patternPresets.repeatWithKnit, patternPresets.stripedPattern],
+      contents: [patternPresets.stripedPattern],
     },
   ],
 } as any;

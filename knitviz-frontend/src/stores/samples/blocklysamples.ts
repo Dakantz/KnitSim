@@ -36,24 +36,6 @@ const clone = <T>(value: T): T => {
 };
 
 const samplePresets = {
-  repeatWithKnit: {
-    kind: "block",
-    type: "knit_repeat",
-    fields: {
-      TIMES: 3,
-    },
-    inputs: {
-      DO: {
-        block: {
-          type: "knit_knit_color",
-          fields: {
-            STITCHES: 4,
-            COLOR: "#ff0000",
-          },
-        },
-      },
-    },
-  },
   stripedPattern: {
     kind: "block",
     type: "knit_cast_on",
@@ -320,15 +302,6 @@ const toWorkspaceBlock = (presetBlock: Record<string, unknown>, id: string) => {
 };
 
 const blocklySampleMap: Record<string, BlocklySample> = {
-  "Repeat With Knit": {
-    presetBlock: samplePresets.repeatWithKnit,
-    workspace: {
-      blocks: {
-        languageVersion: 0,
-        blocks: [toWorkspaceBlock(samplePresets.repeatWithKnit, "repeat-with-knit")],
-      },
-    },
-  },
   "Striped Pattern": {
     presetBlock: samplePresets.stripedPattern,
     workspace: {
