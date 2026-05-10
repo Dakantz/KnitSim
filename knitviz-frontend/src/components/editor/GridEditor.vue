@@ -188,15 +188,6 @@ const symbolSets = {
 	},
 } as const;
 
-const legendItems = computed(() => {
-	const set = symbolSets[gridState.labelMode];
-	return [
-		{ type: "KNIT", label: set.KNIT, title: "Knit" },
-		{ type: "PURL", label: set.PURL, title: "Purl" },
-		{ type: "YARN_OVER", label: set.YARN_OVER, title: "Yarn over / knit over" },
-	];
-});
-
 const getShortType = (type: string) => {
 	const set = symbolSets[gridState.labelMode];
 	return set[type as keyof typeof set] ?? type.slice(0, 1);
@@ -290,14 +281,6 @@ onUnmounted(() => {
 			<span class="summary">{{ cellsTotal }} cells</span>
 		</div>
 
-		<div class="legend-bar">
-			<strong>Legend:</strong>
-			<span v-for="item in legendItems" :key="item.type" class="legend-item">
-				<span class="legend-chip">{{ item.label }}</span>
-				<span>{{ item.title }}</span>
-			</span>
-		</div>
-
 		<div class="grid-container">
 			<svg
 				class="grid-canvas"
@@ -360,32 +343,6 @@ select {
 
 .summary {
 	margin-left: auto;
-}
-
-.legend-bar {
-	display: flex;
-	align-items: center;
-	gap: 0.55rem;
-	flex-wrap: wrap;
-	color: var(--color-text);
-	font-size: 0.9rem;
-}
-
-.legend-item {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	padding: 0.2rem 0.45rem;
-	border: var(--border-container);
-	border-radius: 0.32rem;
-	background: var(--color-background-soft);
-}
-
-.legend-chip {
-	min-width: 1.55rem;
-	text-align: center;
-	font-weight: 700;
-	font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "DejaVu Sans", "Segoe UI Symbol", "Arial Unicode MS", sans-serif;
 }
 
 .grid-container {
