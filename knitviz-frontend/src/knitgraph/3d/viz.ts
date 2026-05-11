@@ -85,7 +85,9 @@ export class PatternViz3D {
       const node = this.graph.nodes[node_id];
       let sphere_matrix = new THREE.Matrix4().makeTranslation(node.position.x, node.position.y, node.position.z)
       this.inst_nodemesh.setMatrixAt(node.id, sphere_matrix);
-      this.updateInstancedMeshes(node);
+      if (node.instanced) {
+        this.updateInstancedMeshes(node);
+      }
       this.inst_nodemesh.instanceMatrix.needsUpdate = true;
     }
 

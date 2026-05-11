@@ -174,14 +174,16 @@ void knitsim::KnitGraphC::computeKnitPaths(float loop_width, bool instancing) {
   // precompute offset knit position per node
   for (auto &node : nodes) {
 
+    // std::cout << nodes[node.id].target_node_id << std::endl;
+
     offset = 0;
     // apply type mod
-    switch(node.type) {
-      case(KnitNodeTypeC::KNIT):
+    switch(node.side) {
+      case(KnitSideC::RIGHT):
         offset = this->config.offset_knit;
         break;
 
-      case(KnitNodeTypeC::PURL):
+      case(KnitSideC::WRONG):
         offset = this->config.offset_purl;
         break;
 
@@ -296,6 +298,8 @@ void knitsim::KnitGraphC::computeKnitPaths(float loop_width, bool instancing) {
     }
 
     this->knitpaths[node.id] = path;
+
+    // std::cout << nodes[node.id].target_node_id << std::endl;
   }
 
   // std::cout << "# cast on = " << num_cast_on << std::endl;
@@ -313,32 +317,37 @@ void knitsim::KnitGraphC::computeKnitPaths(float loop_width, bool instancing) {
 std::vector<Eigen::Vector3f> knitsim::KnitGraphC::constructCastOn(Node node, float loop_width, bool instancing)
 {
   std::vector<Eigen::Vector3f> path;
-  Node prev_node, next_node;
+  Node prev_node, next_node, front_node;
   Eigen::Vector3f row_pos_mod, col_pos_mod, dist_vec;
 
   // get horizontal modifier
   row_pos_mod = getNode(1).knit_position-node.knit_position;
   row_pos_mod.normalize();
 
-  // determine distance to underlying node
-  auto edges = edgesOf(node);
-  Node front_node;
   bool found = false;
-  int dist = INT_MAX;
-  for (auto e : edges) {
-    if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
-      // ignore yarn over
-      if(getNode(e.to).type == KnitNodeTypeC::YARN_OVER) {
-        continue;
-      }
+  if(nodes[node.id].target_node_id == 0) {
+    // determine distance to underlying node
+    auto edges = edgesOf(node);
+    int dist = INT_MAX;
+    for (auto e : edges) {
+      if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
+        // ignore yarn over
+        if(getNode(e.to).type == KnitNodeTypeC::YARN_OVER) {
+          continue;
+        }
 
-      dist_vec = node.knit_position - getNode(e.to).knit_position;
-      if(dist > dist_vec.norm()) {
-        dist = dist_vec.norm();
-        front_node = getNode(e.to);
-        found = true;
+        dist_vec = node.knit_position - getNode(e.to).knit_position;
+        if(dist > dist_vec.norm()) {
+          dist = dist_vec.norm();
+          front_node = getNode(e.to);
+          nodes[node.id].target_node_id = front_node.id;
+          found = true;
+        }
       }
     }
+  } else {
+    front_node = getNode(nodes[node.id].target_node_id);
+    found = true;
   }
 
   if (found) {
@@ -447,14 +456,20 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::constructBindOff(Node node, fl
   path.push_back(node.knit_position - row_pos_mod*0.6*loop_width);
 
   // determine distance to top/back node
-  auto edges = edgesOf(node);
   bool found = false;
-  for (auto e : edges) {
-    if(e.direction == KnitEdgeDirectionC::COLUMN && e.to == node.id) {
-      back_node = getNode(e.from);
-      found = true;
-      // std::cout << "Front Node: " << e.to << " of Node: " << node.id << " with # of edges: " << edges.size() << " from total Nodes: " << nodes.size() << std::endl;
+  if(nodes[node.id].target_node_id == 0) {
+    auto edges = edgesOf(node);
+    for (auto e : edges) {
+      if(e.direction == KnitEdgeDirectionC::COLUMN && e.to == node.id) {
+        back_node = getNode(e.from);
+        nodes[node.id].target_node_id = back_node.id;
+        found = true;
+        // std::cout << "Front Node: " << e.to << " of Node: " << node.id << " with # of edges: " << edges.size() << " from total Nodes: " << nodes.size() << std::endl;
+      }
     }
+  } else {
+    back_node = getNode(nodes[node.id].target_node_id);
+    found = true;
   }
 
   if (found) {
@@ -663,73 +678,85 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::getInstanceTransforms(Node nod
     row_pos_mod = next_node.position-prev_node.position;
   }
 
-  // determine closest front node
-  auto edges = edgesOf(node);
   bool found = false;
   bool yarn_over = false;
-  int dist = INT_MAX;
-  for (auto e : edges) {
-    if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
+  if(nodes[node.id].target_node_id == 0) {
+    // determine closest front node
+    auto edges = edgesOf(node);
+    int dist = INT_MAX;
+    for (auto e : edges) {
+      if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
 
-      dist_vec = node.knit_position - getNode(e.to).knit_position;
-      if(dist > dist_vec.norm()) {
-        dist = dist_vec.norm();
+        dist_vec = node.knit_position - getNode(e.to).knit_position;
+        if(dist > dist_vec.norm()) {
+          dist = dist_vec.norm();
 
-        if(e.to+yo_fix < nodes.size()-1) {
-          if((getNode(e.to+yo_fix).position - node.knit_position).norm() < dist_vec.norm())
-            front_node = getNode(e.to+yo_fix);
-          else front_node = getNode(e.to);
-        } else {
-          if((getNode(nodes.size()-1).position - node.knit_position).norm() < dist_vec.norm())
-            front_node = getNode(nodes.size()-1);
-          else front_node = getNode(e.to);
+          if(e.to+yo_fix < nodes.size()-1) {
+            if((getNode(e.to+yo_fix).position - node.knit_position).norm() < dist_vec.norm())
+              front_node = getNode(e.to+yo_fix);
+            else front_node = getNode(e.to);
+          } else {
+            if((getNode(nodes.size()-1).position - node.knit_position).norm() < dist_vec.norm())
+              front_node = getNode(nodes.size()-1);
+            else front_node = getNode(e.to);
 
+          }
+
+          if(front_node.yarn_over) { // check if yarn_over
+            yarn_over = true;
+          }
+          nodes[node.id].target_node_id = front_node.id;
+          found = true;
         }
-
-        if(front_node.yarn_over) { // check if yarn_over
-          yarn_over = true;
-        }
-        found = true;
       }
     }
-  }
 
-  // std::cout << node.id << " : " << front_node.id << std::endl;
+    if(!found) {
+      front_node = getDecreaseNode(node, is_round);
+      nodes[node.id].target_node_id = front_node.id;
+      // if(front_node.id+yo_fix < nodes.size()-1) {
+      //   front_node = getNode(front_node.id+yo_fix);
+      // } else getNode(nodes.size()-1);
 
-  if(!found) {
-    front_node = getDecreaseNode(node, is_round);
+      found = true;
+    }
 
-    // if(front_node.id+yo_fix < nodes.size()-1) {
-    //   front_node = getNode(front_node.id+yo_fix);
-    // } else getNode(nodes.size()-1);
+    if((yarn_over || front_node.yarn_over) && found) { // if front is yarn over, skip it and set frontnext node
+      front_node = getNode(front_node.id+1);
+      nodes[node.id].target_node_id = front_node.id;
+    }
 
+  } else {
+    front_node = getNode(nodes[node.id].target_node_id);
     found = true;
-  }
-
-  if((yarn_over || front_node.yarn_over) && found) { // if front is yarn over, skip it and set frontnext node
-
-    // if((getNode(front_node.id+1).position - node.knit_position).norm() < (getNode(front_node.id-1).position - node.knit_position).norm())
-    //   front_node = getNode(front_node.id+1);
-    // else front_node = getNode(front_node.id-1);
-
-
-    front_node = getNode(front_node.id+1);
   }
 
   if (found) {
     col_pos_mod = front_node.knit_position - node.knit_position;
 
-    if (front_node.id < nodes.size()-1) {
-      frontnext_node = getNode(front_node.id+1);
+    if(nodes[node.id].inc_node_ids.size() == 0) {
 
-      if(front_node.position[1] - frontnext_node.position[1] < 1 &&
-        ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+      if (front_node.id < nodes.size()-1) {
+        frontnext_node = getNode(front_node.id+1);
 
-        inc_nodes = checkForIncrease(frontnext_node);
-        if (inc_nodes.size() != 0)  {
-          aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+        if(front_node.position[1] - frontnext_node.position[1] < 1 &&
+          ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+
+          inc_nodes = checkForIncrease(frontnext_node);
+
+          if (inc_nodes.size() != 0)  {
+            for (auto inc_node : inc_nodes) {
+              nodes[node.id].inc_node_ids.push_back(inc_node.id);
+            }
+            aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+          } else {nodes[node.id].inc_node_ids.push_back(0);} // set as no increase for this node
         }
       }
+    } else if(nodes[node.id].inc_node_ids[0] != 0) {
+      for (auto inc_ids : nodes[node.id].inc_node_ids) {
+        inc_nodes.push_back(getNode(inc_ids));
+      }
+      aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
     }
 
     node_map.at(front_node.id)->has_above_node = true;
@@ -801,66 +828,86 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::getExtendedKnits(Node node, bo
   }
   row_pos_mod.normalize();
 
-  // determine closest front node
-  auto edges = edgesOf(node);
   bool found = false;
   bool yarn_over = false;
-  int dist = INT_MAX;
-  for (auto e : edges) {
-    if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
+  if(nodes[node.id].target_node_id == 0) {
+    // determine closest front node
+    auto edges = edgesOf(node);
+    int dist = INT_MAX;
+    for (auto e : edges) {
+      if(e.direction == KnitEdgeDirectionC::COLUMN && e.from == node.id) {
 
-      dist_vec = node.knit_position - getNode(e.to).knit_position;
-      if(dist > dist_vec.norm()) {
-        dist = dist_vec.norm();
+        dist_vec = node.knit_position - getNode(e.to).knit_position;
+        if(dist > dist_vec.norm()) {
+          dist = dist_vec.norm();
 
-        if(e.to+yo_fix < nodes.size()-1) {
-          if((getNode(e.to+yo_fix).position - node.knit_position).norm() < dist_vec.norm())
-            front_node = getNode(e.to+yo_fix);
-          else front_node = getNode(e.to);
-        } else {
-          if((getNode(nodes.size()-1).position - node.knit_position).norm() < dist_vec.norm())
-            front_node = getNode(nodes.size()-1);
-          else front_node = getNode(e.to);
+          if(e.to+yo_fix < nodes.size()-1) {
+            if((getNode(e.to+yo_fix).position - node.knit_position).norm() < dist_vec.norm())
+              front_node = getNode(e.to+yo_fix);
+            else front_node = getNode(e.to);
+          } else {
+            if((getNode(nodes.size()-1).position - node.knit_position).norm() < dist_vec.norm())
+              front_node = getNode(nodes.size()-1);
+            else front_node = getNode(e.to);
 
+          }
+
+          if(front_node.yarn_over) { // check if yarn_over
+            yarn_over = true;
+          }
+          nodes[node.id].target_node_id = front_node.id;
+          found = true;
         }
-
-        if(front_node.yarn_over) { // check if yarn_over
-          yarn_over = true;
-        }
-        found = true;
       }
     }
-  }
 
-  if(!found) {
-    front_node = getDecreaseNode(node, is_round);
+    if(!found) {
+      front_node = getDecreaseNode(node, is_round);
+      nodes[node.id].target_node_id = front_node.id;
+      // if(front_node.id+yo_fix < nodes.size()-1) {
+      //   front_node = getNode(front_node.id+yo_fix);
+      // } else getNode(nodes.size()-1);
 
-    // if(front_node.id+yo_fix < nodes.size()-1) {
-    //   front_node = getNode(front_node.id+yo_fix);
-    // } else getNode(nodes.size()-1);
+      found = true;
+    }
 
+    if((yarn_over || front_node.yarn_over) && found) { // if front is yarn over, skip it and set frontnext node
+      front_node = getNode(front_node.id+1);
+      nodes[node.id].target_node_id = front_node.id;
+    }
+
+  } else {
+    front_node = getNode(nodes[node.id].target_node_id);
     found = true;
   }
 
-  if((yarn_over || front_node.yarn_over) && found) { // if front is yarn over, skip it and set frontnext node
-    front_node = getNode(front_node.id+1);
-  }
 
   if (found) {
     col_pos_mod = front_node.knit_position - node.knit_position;
 
-    if (front_node.id < nodes.size()-1) {
-      frontnext_node = getNode(front_node.id+1);
+    if(nodes[node.id].inc_node_ids.size() == 0) {
 
-      if(front_node.position[1] - frontnext_node.position[1] < 1 &&
-        ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+      if (front_node.id < nodes.size()-1) {
+        frontnext_node = getNode(front_node.id+1);
 
-        inc_nodes = checkForIncrease(frontnext_node);
-        if (inc_nodes.size() != 0)  {
-          // std::cout << "inc_nodes: " << inc_nodes.size() << std::endl;
-          aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+        if(front_node.position[1] - frontnext_node.position[1] < 1 &&
+          ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+
+          inc_nodes = checkForIncrease(frontnext_node);
+
+          if (inc_nodes.size() != 0)  {
+            for (auto inc_node : inc_nodes) {
+              nodes[node.id].inc_node_ids.push_back(inc_node.id);
+            }
+            aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+          } else {nodes[node.id].inc_node_ids.push_back(0);} // set as no increase for this node
         }
       }
+    } else if(nodes[node.id].inc_node_ids[0] != 0) {
+      for (auto inc_ids : nodes[node.id].inc_node_ids) {
+        inc_nodes.push_back(getNode(inc_ids));
+      }
+      aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
     }
 
     node_map.at(front_node.id)->has_above_node = true;
