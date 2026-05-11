@@ -734,17 +734,29 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::getInstanceTransforms(Node nod
   if (found) {
     col_pos_mod = front_node.knit_position - node.knit_position;
 
-    if (front_node.id < nodes.size()-1) {
-      frontnext_node = getNode(front_node.id+1);
+    if(nodes[node.id].inc_node_ids.size() == 0) {
 
-      if(front_node.position[1] - frontnext_node.position[1] < 1 &&
-        ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+      if (front_node.id < nodes.size()-1) {
+        frontnext_node = getNode(front_node.id+1);
 
-        inc_nodes = checkForIncrease(frontnext_node);
-        if (inc_nodes.size() != 0)  {
-          aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+        if(front_node.position[1] - frontnext_node.position[1] < 1 &&
+          ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+
+          inc_nodes = checkForIncrease(frontnext_node);
+
+          if (inc_nodes.size() != 0)  {
+            for (auto inc_node : inc_nodes) {
+              nodes[node.id].inc_node_ids.push_back(inc_node.id);
+            }
+            aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+          } else {nodes[node.id].inc_node_ids.push_back(0);} // set as no increase for this node
         }
       }
+    } else if(nodes[node.id].inc_node_ids[0] != 0) {
+      for (auto inc_ids : nodes[node.id].inc_node_ids) {
+        inc_nodes.push_back(getNode(inc_ids));
+      }
+      aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
     }
 
     node_map.at(front_node.id)->has_above_node = true;
@@ -873,18 +885,29 @@ std::vector<Eigen::Vector3f> knitsim::KnitGraphC::getExtendedKnits(Node node, bo
   if (found) {
     col_pos_mod = front_node.knit_position - node.knit_position;
 
-    if (front_node.id < nodes.size()-1) {
-      frontnext_node = getNode(front_node.id+1);
+    if(nodes[node.id].inc_node_ids.size() == 0) {
 
-      if(front_node.position[1] - frontnext_node.position[1] < 1 &&
-        ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+      if (front_node.id < nodes.size()-1) {
+        frontnext_node = getNode(front_node.id+1);
 
-        inc_nodes = checkForIncrease(frontnext_node);
-        if (inc_nodes.size() != 0)  {
-          // std::cout << "inc_nodes: " << inc_nodes.size() << std::endl;
-          aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+        if(front_node.position[1] - frontnext_node.position[1] < 1 &&
+          ((is_round && next_node.start_of_row) || (!is_round && node.start_of_row))) {
+
+          inc_nodes = checkForIncrease(frontnext_node);
+
+          if (inc_nodes.size() != 0)  {
+            for (auto inc_node : inc_nodes) {
+              nodes[node.id].inc_node_ids.push_back(inc_node.id);
+            }
+            aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
+          } else {nodes[node.id].inc_node_ids.push_back(0);} // set as no increase for this node
         }
       }
+    } else if(nodes[node.id].inc_node_ids[0] != 0) {
+      for (auto inc_ids : nodes[node.id].inc_node_ids) {
+        inc_nodes.push_back(getNode(inc_ids));
+      }
+      aux_path = constructIncrease(node, inc_nodes, loop_width, is_round);
     }
 
     node_map.at(front_node.id)->has_above_node = true;
