@@ -161,8 +161,8 @@ export class KnittingState {
         }
         if (procedal == KnitNodeType.YARN_OVER) {
           // set as type for knit construction
-          // node.type = procedal
-          node.yarn_over = true;
+          node.type = procedal // save type, then
+          node.yarn_over = true; // doesn't seem to carry on to initGraphWASM for some reason
           console.log("yarn over", node, this.previous_node);
           traversal = [
             { dir: KnitEdgeDirection.COLUMN, in: true },

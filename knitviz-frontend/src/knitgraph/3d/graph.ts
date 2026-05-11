@@ -1,5 +1,5 @@
 import { toRaw } from "vue";
-import { KnitEdge, KnitGraph } from "..";
+import { KnitEdge, KnitGraph, KnitNodeType } from "..";
 import type { GraphConfig, KnitGraphC, KnitSim } from "../sim/knitsim-lib";
 import { KnitSimModule } from "./viz";
 
@@ -25,7 +25,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
       let node = graph.nodes[key];
       this.nodes[node.id] = new KnitNode3D(toRaw(node), new THREE.Vector3());
     }
-    
+
     this.assertIntegrity();
   }
 
@@ -71,6 +71,7 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
 
       // update if instanced after computeKnitPath
       node.instanced = wasm_node.instanced;
+      node.yarn_over = wasm_node.yarn_over;
 
       let force = this.graph_sim.force(node.id);
       node.force.set(force.x, force.y, force.z);
@@ -127,6 +128,8 @@ export class KnitGraph3D extends KnitGraph<KnitNode3D, KnitEdge> {
     let edge_vec = new KnitSimModule.EdgeVector();
     for (let key in this.nodes) {
       let node = this.nodes[key];
+      if(node.type == KnitNodeType.YARN_OVER) {
+        node.yarn_over = true; } // has to be set here, in index.ts it doesn't get saved
       let node_wasm = {
         id: node.id,
         line_number: node.line_number,

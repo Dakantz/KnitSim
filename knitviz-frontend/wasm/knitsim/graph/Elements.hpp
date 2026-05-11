@@ -19,12 +19,14 @@ namespace knitsim {
     KnitModeC mode;
     KnitSideC side;
     int32_t previous_node_id;
+    int32_t target_node_id = 0; // target node id must be saved, cannot change during simulation
     bool has_above_node = false;
     Eigen::Vector3f position;
     Eigen::Vector3f knit_position;
     Eigen::Vector3f normal;
     Eigen::Vector3f next_dir;
     bool instanced = true; // as basic knits/purls outnumber everything else
+
 
     Node() {}
   };
